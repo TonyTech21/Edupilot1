@@ -97,6 +97,7 @@
                     <th>Exam</th>
                     <th>Total</th>
                     <th>Grade</th>
+                    <th>Position</th>
                     <th>Entered By</th>
                     <th>Date Entered</th>
                     <th>Actions</th>
@@ -124,6 +125,13 @@
                                     <%= result.grade %>
                                 </span>
                             </td>
+                            <td class="position">
+                                <% if (result.position) { %>
+                                    <%= result.position %>
+                                <% } else { %>
+                                    -
+                                <% } %>
+                            </td>
                             <td><%= result.enteredBy %></td>
                             <td><%= new Date(result.enteredAt).toLocaleDateString() %></td>
                             <td class="actions">
@@ -135,7 +143,7 @@
                     <% }) %>
                 <% } else { %>
                     <tr>
-                        <td colspan="15" class="text-center">No pending results found</td>
+                        <td colspan="16" class="text-center">No pending results found</td>
                     </tr>
                 <% } %>
             </tbody>
@@ -181,6 +189,11 @@
 .total-score {
     font-weight: bold;
     color: var(--primary-color);
+}
+
+.position {
+    font-weight: bold;
+    color: var(--success-color);
 }
 
 .bulk-actions {
@@ -259,14 +272,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            if (confirm(`Are you sure you want to approve ${resultIds.length} result(s)?`)) {
+            if (confirm(`Are you sure you want to approve ${resultIds.length} result(s)? This will also calculate class positions.`)) {
                 approveMultipleResults(resultIds);
             }
         });
     }
     
     function approveResult(resultId, button) {
-        if (!confirm('Are you sure you want to approve this result?')) {
+        if (!confirm('Are you sure you want to approve this result? This will also calculate class positions.')) {
             return;
         }
         
@@ -284,7 +297,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.success) {
                 // Remove the row from the table
                 button.closest('tr').remove();
-                showAlert('Result approved successfully', 'success');
+                showAlert('Result approved successfully and positions calculated', 'success');
                 
                 // Update counts
                 updateResultCounts();
@@ -324,7 +337,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 });
                 
-                showAlert(data.message, 'success');
+                showAlert(data.message + ' and positions calculated', 'success');
                 updateBulkActions();
                 updateSelectAllState();
                 updateResultCounts();
@@ -347,7 +360,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const remainingRows = document.querySelectorAll('.data-table tbody tr:not(.no-results)').length;
         if (remainingRows === 0) {
             const tbody = document.querySelector('.data-table tbody');
-            tbody.innerHTML = '<tr class="no-results"><td colspan="15" class="text-center">No pending results found</td></tr>';
+            tbody.innerHTML = '<tr class="no-results"><td colspan="16" class="text-center">No pending results found</td></tr>';
             if (bulkActions) {
                 bulkActions.style.display = 'none';
             }

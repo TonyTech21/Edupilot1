@@ -65,6 +65,9 @@ router.post('/approve/:id', requireAuth, requireRole(['admin', 'officer']), asyn
     
     await result.save();
     
+    // Calculate positions for the class after approval
+    await Result.calculatePositions(result.className, result.term, result.session);
+    
     res.json({ success: true, message: 'Result approved successfully' });
   } catch (error) {
     console.error('Error approving result:', error);
@@ -82,6 +85,8 @@ router.post('/approve-multiple', requireAuth, requireRole(['admin', 'officer']),
       return res.status(400).json({ success: false, message: 'No results selected' });
     }
     
+    const results = await Result.find({ _id: { $in: resultIds } });
+    
     await Result.updateMany(
       { _id: { $in: resultIds } },
       { 
@@ -90,6 +95,17 @@ router.post('/approve-multiple', requireAuth, requireRole(['admin', 'officer']),
         publishedAt: new Date() 
       }
     );
+    
+    // Calculate positions for affected classes
+    const classTermSessions = new Set();
+    results.forEach(result => {
+      classTermSessions.add(`${result.className}|${result.term}|${result.session}`);
+    });
+    
+    for (const classTermSession of classTermSessions) {
+      const [className, term, session] = classTermSession.split('|');
+      await Result.calculatePositions(className, term, session);
+    }
     
     res.json({ success: true, message: `${resultIds.length} results approved successfully` });
   } catch (error) {
@@ -154,8 +170,12 @@ router.post('/unpublish/:id', requireAuth, requireRole('admin'), async (req, res
     result.published = false;
     result.publishedBy = null;
     result.publishedAt = null;
+    result.position = null;
     
     await result.save();
+    
+    // Recalculate positions for the class
+    await Result.calculatePositions(result.className, result.term, result.session);
     
     res.json({ success: true, message: 'Result unpublished successfully' });
   } catch (error) {

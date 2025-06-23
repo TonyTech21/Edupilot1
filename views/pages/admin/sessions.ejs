@@ -29,8 +29,8 @@
                     <th>Session Name</th>
                     <th>Current Term</th>
                     <th>Status</th>
-                    <th>Start Date</th>
-                    <th>End Date</th>
+                    <th>Session Dates</th>
+                    <th>Term Dates</th>
                     <th>Term Status</th>
                     <th>Actions</th>
                 </tr>
@@ -41,13 +41,17 @@
                         <tr>
                             <td><strong><%= session.sessionName %></strong></td>
                             <td>
-                                <form method="POST" action="/admin/sessions/set-term/<%= session._id %>" style="display: inline;">
-                                    <select name="currentTerm" onchange="this.form.submit()" <%= !session.isActive ? 'disabled' : '' %>>
-                                        <option value="First Term" <%= session.currentTerm === 'First Term' ? 'selected' : '' %>>First Term</option>
-                                        <option value="Second Term" <%= session.currentTerm === 'Second Term' ? 'selected' : '' %>>Second Term</option>
-                                        <option value="Third Term" <%= session.currentTerm === 'Third Term' ? 'selected' : '' %>>Third Term</option>
-                                    </select>
-                                </form>
+                                <% if (session.isActive) { %>
+                                    <form method="POST" action="/admin/sessions/set-term/<%= session._id %>" style="display: inline;">
+                                        <select name="currentTerm" onchange="this.form.submit()">
+                                            <option value="First Term" <%= session.currentTerm === 'First Term' ? 'selected' : '' %>>First Term</option>
+                                            <option value="Second Term" <%= session.currentTerm === 'Second Term' ? 'selected' : '' %>>Second Term</option>
+                                            <option value="Third Term" <%= session.currentTerm === 'Third Term' ? 'selected' : '' %>>Third Term</option>
+                                        </select>
+                                    </form>
+                                <% } else { %>
+                                    <%= session.currentTerm %>
+                                <% } %>
                             </td>
                             <td>
                                 <% if (session.isActive) { %>
@@ -57,18 +61,27 @@
                                 <% } %>
                             </td>
                             <td>
-                                <% if (session.startDate) { %>
-                                    <%= new Date(session.startDate).toLocaleDateString() %>
-                                <% } else { %>
-                                    <span class="text-muted">Not set</span>
-                                <% } %>
+                                <div class="date-info">
+                                    <% if (session.startDate) { %>
+                                        <small>Start: <%= new Date(session.startDate).toLocaleDateString() %></small><br>
+                                    <% } %>
+                                    <% if (session.endDate) { %>
+                                        <small>End: <%= new Date(session.endDate).toLocaleDateString() %></small>
+                                    <% } %>
+                                </div>
                             </td>
                             <td>
-                                <% if (session.endDate) { %>
-                                    <%= new Date(session.endDate).toLocaleDateString() %>
-                                <% } else { %>
-                                    <span class="text-muted">Not set</span>
-                                <% } %>
+                                <div class="term-dates">
+                                    <% if (session.firstTermStart) { %>
+                                        <small>1st: <%= new Date(session.firstTermStart).toLocaleDateString() %> - <%= session.firstTermEnd ? new Date(session.firstTermEnd).toLocaleDateString() : 'TBD' %></small><br>
+                                    <% } %>
+                                    <% if (session.secondTermStart) { %>
+                                        <small>2nd: <%= new Date(session.secondTermStart).toLocaleDateString() %> - <%= session.secondTermEnd ? new Date(session.secondTermEnd).toLocaleDateString() : 'TBD' %></small><br>
+                                    <% } %>
+                                    <% if (session.thirdTermStart) { %>
+                                        <small>3rd: <%= new Date(session.thirdTermStart).toLocaleDateString() %> - <%= session.thirdTermEnd ? new Date(session.thirdTermEnd).toLocaleDateString() : 'TBD' %></small>
+                                    <% } %>
+                                </div>
                             </td>
                             <td>
                                 <div class="term-status">
@@ -87,16 +100,18 @@
                                 <% if (!session.isActive) { %>
                                     <form method="POST" action="/admin/sessions/activate/<%= session._id %>" style="display: inline;" onsubmit="return confirm('Are you sure you want to activate this session? This will deactivate the current active session.')">
                                         <button type="submit" class="btn btn-sm btn-success">
-                                            <i class="fas fa-play"></i> Activate
+                                            <i class="fas fa-play"></i>
                                         </button>
                                     </form>
                                 <% } %>
-                                <button type="button" class="btn btn-sm btn-secondary" onclick="editSession('<%= session._id %>', '<%= session.sessionName %>', '<%= session.startDate ? new Date(session.startDate).toISOString().split('T')[0] : '' %>', '<%= session.endDate ? new Date(session.endDate).toISOString().split('T')[0] : '' %>')">
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="editSession('<%= session._id %>', '<%= session.sessionName %>', '<%= session.startDate ? new Date(session.startDate).toISOString().split('T')[0] : '' %>', '<%= session.endDate ? new Date(session.endDate).toISOString().split('T')[0] : '' %>', '<%= session.firstTermStart ? new Date(session.firstTermStart).toISOString().split('T')[0] : '' %>', '<%= session.firstTermEnd ? new Date(session.firstTermEnd).toISOString().split('T')[0] : '' %>', '<%= session.secondTermStart ? new Date(session.secondTermStart).toISOString().split('T')[0] : '' %>', '<%= session.secondTermEnd ? new Date(session.secondTermEnd).toISOString().split('T')[0] : '' %>', '<%= session.thirdTermStart ? new Date(session.thirdTermStart).toISOString().split('T')[0] : '' %>', '<%= session.thirdTermEnd ? new Date(session.thirdTermEnd).toISOString().split('T')[0] : '' %>')">
                                     <i class="fas fa-edit"></i>
                                 </button>
-                                <button type="button" class="btn btn-sm btn-warning" onclick="toggleTermLock('<%= session._id %>', '<%= session.currentTerm %>')">
-                                    <i class="fas fa-lock"></i> Lock Term
-                                </button>
+                                <% if (session.isActive) { %>
+                                    <button type="button" class="btn btn-sm btn-warning" onclick="toggleTermLock('<%= session._id %>', '<%= session.currentTerm %>')">
+                                        <i class="fas fa-lock"></i>
+                                    </button>
+                                <% } %>
                             </td>
                         </tr>
                     <% }) %>
@@ -123,13 +138,45 @@
                     <label for="sessionName">Session Name *</label>
                     <input type="text" id="sessionName" name="sessionName" required placeholder="e.g., 2024/2025">
                 </div>
-                <div class="form-group">
-                    <label for="startDate">Start Date</label>
-                    <input type="date" id="startDate" name="startDate">
+                
+                <h4>Session Dates</h4>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="startDate">Session Start Date</label>
+                        <input type="date" id="startDate" name="startDate">
+                    </div>
+                    <div class="form-group">
+                        <label for="endDate">Session End Date</label>
+                        <input type="date" id="endDate" name="endDate">
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="endDate">End Date</label>
-                    <input type="date" id="endDate" name="endDate">
+                
+                <h4>Term Dates</h4>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="firstTermStart">First Term Start</label>
+                        <input type="date" id="firstTermStart" name="firstTermStart">
+                    </div>
+                    <div class="form-group">
+                        <label for="firstTermEnd">First Term End</label>
+                        <input type="date" id="firstTermEnd" name="firstTermEnd">
+                    </div>
+                    <div class="form-group">
+                        <label for="secondTermStart">Second Term Start</label>
+                        <input type="date" id="secondTermStart" name="secondTermStart">
+                    </div>
+                    <div class="form-group">
+                        <label for="secondTermEnd">Second Term End</label>
+                        <input type="date" id="secondTermEnd" name="secondTermEnd">
+                    </div>
+                    <div class="form-group">
+                        <label for="thirdTermStart">Third Term Start</label>
+                        <input type="date" id="thirdTermStart" name="thirdTermStart">
+                    </div>
+                    <div class="form-group">
+                        <label for="thirdTermEnd">Third Term End</label>
+                        <input type="date" id="thirdTermEnd" name="thirdTermEnd">
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -153,13 +200,45 @@
                     <label for="editSessionName">Session Name *</label>
                     <input type="text" id="editSessionName" name="sessionName" required>
                 </div>
-                <div class="form-group">
-                    <label for="editStartDate">Start Date</label>
-                    <input type="date" id="editStartDate" name="startDate">
+                
+                <h4>Session Dates</h4>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="editStartDate">Session Start Date</label>
+                        <input type="date" id="editStartDate" name="startDate">
+                    </div>
+                    <div class="form-group">
+                        <label for="editEndDate">Session End Date</label>
+                        <input type="date" id="editEndDate" name="endDate">
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="editEndDate">End Date</label>
-                    <input type="date" id="editEndDate" name="endDate">
+                
+                <h4>Term Dates</h4>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="editFirstTermStart">First Term Start</label>
+                        <input type="date" id="editFirstTermStart" name="firstTermStart">
+                    </div>
+                    <div class="form-group">
+                        <label for="editFirstTermEnd">First Term End</label>
+                        <input type="date" id="editFirstTermEnd" name="firstTermEnd">
+                    </div>
+                    <div class="form-group">
+                        <label for="editSecondTermStart">Second Term Start</label>
+                        <input type="date" id="editSecondTermStart" name="secondTermStart">
+                    </div>
+                    <div class="form-group">
+                        <label for="editSecondTermEnd">Second Term End</label>
+                        <input type="date" id="editSecondTermEnd" name="secondTermEnd">
+                    </div>
+                    <div class="form-group">
+                        <label for="editThirdTermStart">Third Term Start</label>
+                        <input type="date" id="editThirdTermStart" name="thirdTermStart">
+                    </div>
+                    <div class="form-group">
+                        <label for="editThirdTermEnd">Third Term End</label>
+                        <input type="date" id="editThirdTermEnd" name="thirdTermEnd">
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -211,6 +290,10 @@
     color: #991b1b;
 }
 
+.date-info, .term-dates {
+    font-size: 0.8rem;
+}
+
 .modal {
     position: fixed;
     top: 0;
@@ -228,7 +311,7 @@
     background: white;
     border-radius: 0.5rem;
     width: 90%;
-    max-width: 500px;
+    max-width: 800px;
     max-height: 90vh;
     overflow-y: auto;
 }
@@ -261,9 +344,10 @@
     color: var(--secondary-color);
 }
 
-.text-muted {
-    color: #6b7280;
-    font-style: italic;
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
 }
 </style>
 
@@ -276,11 +360,17 @@ function hideAddSessionModal() {
     document.getElementById('addSessionModal').style.display = 'none';
 }
 
-function editSession(id, name, startDate, endDate) {
+function editSession(id, name, startDate, endDate, firstTermStart, firstTermEnd, secondTermStart, secondTermEnd, thirdTermStart, thirdTermEnd) {
     document.getElementById('editSessionForm').action = `/admin/sessions/edit/${id}`;
     document.getElementById('editSessionName').value = name;
     document.getElementById('editStartDate').value = startDate;
     document.getElementById('editEndDate').value = endDate;
+    document.getElementById('editFirstTermStart').value = firstTermStart;
+    document.getElementById('editFirstTermEnd').value = firstTermEnd;
+    document.getElementById('editSecondTermStart').value = secondTermStart;
+    document.getElementById('editSecondTermEnd').value = secondTermEnd;
+    document.getElementById('editThirdTermStart').value = thirdTermStart;
+    document.getElementById('editThirdTermEnd').value = thirdTermEnd;
     document.getElementById('editSessionModal').style.display = 'flex';
 }
 

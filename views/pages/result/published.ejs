@@ -80,6 +80,7 @@
                     <th>Exam</th>
                     <th>Total</th>
                     <th>Grade</th>
+                    <th>Position</th>
                     <th>Published By</th>
                     <th>Published Date</th>
                     <% if (user.role === 'admin') { %>
@@ -106,6 +107,13 @@
                                     <%= result.grade %>
                                 </span>
                             </td>
+                            <td class="position">
+                                <% if (result.position) { %>
+                                    <%= result.position %>
+                                <% } else { %>
+                                    -
+                                <% } %>
+                            </td>
                             <td><%= result.publishedBy %></td>
                             <td><%= new Date(result.publishedAt).toLocaleDateString() %></td>
                             <% if (user.role === 'admin') { %>
@@ -119,7 +127,7 @@
                     <% }) %>
                 <% } else { %>
                     <tr>
-                        <td colspan="<%= user.role === 'admin' ? '14' : '13' %>" class="text-center">No published results found</td>
+                        <td colspan="<%= user.role === 'admin' ? '15' : '14' %>" class="text-center">No published results found</td>
                     </tr>
                 <% } %>
             </tbody>
@@ -167,6 +175,11 @@
     color: var(--primary-color);
 }
 
+.position {
+    font-weight: bold;
+    color: var(--success-color);
+}
+
 .page-actions {
     display: flex;
     gap: 1rem;
@@ -188,7 +201,7 @@ document.addEventListener('DOMContentLoaded', function() {
         button.addEventListener('click', function() {
             const resultId = this.dataset.id;
             
-            if (!confirm('Are you sure you want to unpublish this result? Students will no longer be able to see it.')) {
+            if (!confirm('Are you sure you want to unpublish this result? Students will no longer be able to see it and positions will be recalculated.')) {
                 return;
             }
             
@@ -206,7 +219,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.success) {
                     // Remove the row from the table
                     this.closest('tr').remove();
-                    showAlert('Result unpublished successfully', 'success');
+                    showAlert('Result unpublished successfully and positions recalculated', 'success');
                     
                     // Check if table is empty
                     const remainingRows = document.querySelectorAll('.data-table tbody tr:not(.no-results)').length;

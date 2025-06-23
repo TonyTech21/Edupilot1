@@ -39,6 +39,9 @@
                         <a href="/admin/promote" class="nav-link <%= currentPath.includes('/admin/promote') ? 'active' : '' %>">
                             <i class="fas fa-level-up-alt"></i> Promote Students
                         </a>
+                        <a href="/admin/announcements" class="nav-link <%= currentPath.includes('/admin/announcements') ? 'active' : '' %>">
+                            <i class="fas fa-bullhorn"></i> Announcements
+                        </a>
                     <% } else if (user.role === 'teacher') { %>
                         <a href="/dashboard" class="nav-link <%= currentPath === '/dashboard' ? 'active' : '' %>">
                             <i class="fas fa-tachometer-alt"></i> Dashboard

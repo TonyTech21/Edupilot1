@@ -44,6 +44,10 @@ const sessionSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  sessionLocked: {
+    type: Boolean,
+    default: false
+  },
   createdAt: {
     type: Date,
     default: Date.now
@@ -69,6 +73,20 @@ sessionSchema.pre('save', async function(next) {
 // Static method to get active session
 sessionSchema.statics.getActiveSession = function() {
   return this.findOne({ isActive: true });
+};
+
+// Method to check if current term is locked
+sessionSchema.methods.isCurrentTermLocked = function() {
+  switch (this.currentTerm) {
+    case 'First Term':
+      return this.firstTermLocked;
+    case 'Second Term':
+      return this.secondTermLocked;
+    case 'Third Term':
+      return this.thirdTermLocked;
+    default:
+      return false;
+  }
 };
 
 module.exports = mongoose.model('Session', sessionSchema);

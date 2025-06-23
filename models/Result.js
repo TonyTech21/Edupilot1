@@ -68,6 +68,10 @@ const resultSchema = new mongoose.Schema({
     enum: ['Excellent', 'Very Good', 'Good', 'Fair', 'Poor', 'Fail'],
     default: 'Fail'
   },
+  position: {
+    type: Number,
+    default: null
+  },
   // Status Tracking
   published: {
     type: Boolean,
@@ -124,6 +128,58 @@ resultSchema.pre('save', function(next) {
   this.updatedAt = Date.now();
   next();
 });
+
+// Static method to calculate positions for a class
+resultSchema.statics.calculatePositions = async function(className, term, session) {
+  try {
+    // Get all students in the class with their total scores
+    const studentTotals = await this.aggregate([
+      {
+        $match: {
+          className: className,
+          term: term,
+          session: session,
+          published: true
+        }
+      },
+      {
+        $group: {
+          _id: '$studentID',
+          studentName: { $first: '$studentName' },
+          totalScore: { $sum: '$total' },
+          subjectCount: { $sum: 1 }
+        }
+      },
+      {
+        $addFields: {
+          averageScore: { $divide: ['$totalScore', '$subjectCount'] }
+        }
+      },
+      {
+        $sort: { totalScore: -1, averageScore: -1 }
+      }
+    ]);
+
+    // Assign positions
+    for (let i = 0; i < studentTotals.length; i++) {
+      const position = i + 1;
+      await this.updateMany(
+        {
+          studentID: studentTotals[i]._id,
+          className: className,
+          term: term,
+          session: session
+        },
+        { position: position }
+      );
+    }
+
+    return studentTotals;
+  } catch (error) {
+    console.error('Error calculating positions:', error);
+    throw error;
+  }
+};
 
 // Compound indexes for efficient querying
 resultSchema.index({ studentID: 1, term: 1, session: 1 });

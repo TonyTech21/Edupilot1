@@ -6,14 +6,21 @@ const Class = require('../models/Class');
 const Session = require('../models/Session');
 const School = require('../models/School');
 const Result = require('../models/Result');
+const Announcement = require('../models/Announcement');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, 'public/uploads/');
+    const uploadDir = 'public/uploads/';
+    // Ensure upload directory exists
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
     cb(null, Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname));
@@ -40,6 +47,16 @@ const upload = multer({
 router.use(requireAuth);
 router.use(requireRole('admin'));
 
+// Generate random password
+function generateRandomPassword(length = 8) {
+  const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let password = '';
+  for (let i = 0; i < length; i++) {
+    password += charset.charAt(Math.floor(Math.random() * charset.length));
+  }
+  return password;
+}
+
 // Manage Students
 router.get('/students', async (req, res) => {
   try {
@@ -47,7 +64,7 @@ router.get('/students', async (req, res) => {
     const limit = 20;
     const skip = (page - 1) * limit;
     
-    const filter = {};
+    const filter = { isActive: true }; // Only show active students
     if (req.query.class) filter.currentClass = req.query.class;
     if (req.query.session) filter.currentSession = req.query.session;
     if (req.query.search) {
@@ -105,7 +122,7 @@ router.post('/students/add', upload.single('passport'), async (req, res) => {
   try {
     const {
       fullName, studentID, gender, dateOfBirth, parentPhone, 
-      parentEmail, address, currentClass, section, password
+      parentEmail, address, currentClass, section
     } = req.body;
     
     // Check if student ID already exists
@@ -121,10 +138,13 @@ router.post('/students/add', upload.single('passport'), async (req, res) => {
     
     const activeSession = await Session.getActiveSession();
     
+    // Generate random password
+    const randomPassword = generateRandomPassword();
+    
     const studentData = {
       fullName,
       studentID,
-      password: password || 'student123', // Default password if not provided
+      password: randomPassword,
       gender,
       dateOfBirth: new Date(dateOfBirth),
       parentPhone,
@@ -132,18 +152,18 @@ router.post('/students/add', upload.single('passport'), async (req, res) => {
       address,
       currentClass,
       section,
-      currentSession: activeSession.sessionName,
+      currentSession: activeSession ? activeSession.sessionName : '2024/2025',
       passportURL: req.file ? `/uploads/${req.file.filename}` : '/images/default-avatar.png'
     };
     
     await Student.create(studentData);
     
-    res.redirect('/admin/students?success=Student added successfully');
+    res.redirect(`/admin/students?success=Student added successfully. Password: ${randomPassword}`);
   } catch (error) {
     console.error('Error adding student:', error);
     res.render('pages/admin/add-student', {
       title: 'Add New Student',
-      error: 'Failed to add student',
+      error: 'Failed to add student: ' + error.message,
       classes: await Class.find({ isActive: true }).sort({ className: 1 }),
       activeSession: await Session.getActiveSession()
     });
@@ -194,7 +214,7 @@ router.post('/students/edit/:id', upload.single('passport'), async (req, res) =>
   }
 });
 
-// Delete Student
+// Delete Student (Deactivate)
 router.post('/students/delete/:id', async (req, res) => {
   try {
     await Student.findByIdAndUpdate(req.params.id, { isActive: false });
@@ -276,6 +296,57 @@ router.post('/staff/add', async (req, res) => {
       classes: await Class.find({ isActive: true }).sort({ className: 1 }),
       subjects: await Class.getAllSubjects()
     });
+  }
+});
+
+// Edit Staff Form
+router.get('/staff/edit/:id', async (req, res) => {
+  try {
+    const staff = await User.findById(req.params.id);
+    const classes = await Class.find({ isActive: true }).sort({ className: 1 });
+    const subjects = await Class.getAllSubjects();
+    
+    if (!staff) {
+      return res.redirect('/admin/staff?error=Staff member not found');
+    }
+    
+    res.render('pages/admin/edit-staff', {
+      title: 'Edit Staff',
+      staff,
+      classes,
+      subjects
+    });
+  } catch (error) {
+    console.error('Error loading staff for edit:', error);
+    res.redirect('/admin/staff?error=Unable to load staff member');
+  }
+});
+
+// Update Staff
+router.post('/staff/edit/:id', async (req, res) => {
+  try {
+    const { name, email, role, phone, address, assignedSubjects, assignedClasses } = req.body;
+    
+    const updateData = {
+      name,
+      email,
+      role,
+      phone,
+      address,
+      assignedSubjects: Array.isArray(assignedSubjects) ? assignedSubjects : [assignedSubjects].filter(Boolean),
+      assignedClasses: Array.isArray(assignedClasses) ? assignedClasses : [assignedClasses].filter(Boolean)
+    };
+    
+    // Only update password if provided
+    if (req.body.password && req.body.password.trim()) {
+      updateData.password = req.body.password;
+    }
+    
+    await User.findByIdAndUpdate(req.params.id, updateData);
+    res.redirect('/admin/staff?success=Staff member updated successfully');
+  } catch (error) {
+    console.error('Error updating staff:', error);
+    res.redirect('/admin/staff?error=Failed to update staff member');
   }
 });
 
@@ -393,11 +464,18 @@ router.get('/sessions', async (req, res) => {
 // Add Session
 router.post('/sessions/add', async (req, res) => {
   try {
-    const { sessionName, startDate, endDate } = req.body;
-    const sessionData = { sessionName };
-    
-    if (startDate) sessionData.startDate = new Date(startDate);
-    if (endDate) sessionData.endDate = new Date(endDate);
+    const { sessionName, startDate, endDate, firstTermStart, firstTermEnd, secondTermStart, secondTermEnd, thirdTermStart, thirdTermEnd } = req.body;
+    const sessionData = { 
+      sessionName,
+      startDate: startDate ? new Date(startDate) : null,
+      endDate: endDate ? new Date(endDate) : null,
+      firstTermStart: firstTermStart ? new Date(firstTermStart) : null,
+      firstTermEnd: firstTermEnd ? new Date(firstTermEnd) : null,
+      secondTermStart: secondTermStart ? new Date(secondTermStart) : null,
+      secondTermEnd: secondTermEnd ? new Date(secondTermEnd) : null,
+      thirdTermStart: thirdTermStart ? new Date(thirdTermStart) : null,
+      thirdTermEnd: thirdTermEnd ? new Date(thirdTermEnd) : null
+    };
     
     await Session.create(sessionData);
     res.redirect('/admin/sessions?success=Session added successfully');
@@ -410,11 +488,18 @@ router.post('/sessions/add', async (req, res) => {
 // Edit Session
 router.post('/sessions/edit/:id', async (req, res) => {
   try {
-    const { sessionName, startDate, endDate } = req.body;
-    const updateData = { sessionName };
-    
-    if (startDate) updateData.startDate = new Date(startDate);
-    if (endDate) updateData.endDate = new Date(endDate);
+    const { sessionName, startDate, endDate, firstTermStart, firstTermEnd, secondTermStart, secondTermEnd, thirdTermStart, thirdTermEnd } = req.body;
+    const updateData = { 
+      sessionName,
+      startDate: startDate ? new Date(startDate) : null,
+      endDate: endDate ? new Date(endDate) : null,
+      firstTermStart: firstTermStart ? new Date(firstTermStart) : null,
+      firstTermEnd: firstTermEnd ? new Date(firstTermEnd) : null,
+      secondTermStart: secondTermStart ? new Date(secondTermStart) : null,
+      secondTermEnd: secondTermEnd ? new Date(secondTermEnd) : null,
+      thirdTermStart: thirdTermStart ? new Date(thirdTermStart) : null,
+      thirdTermEnd: thirdTermEnd ? new Date(thirdTermEnd) : null
+    };
     
     await Session.findByIdAndUpdate(req.params.id, updateData);
     res.redirect('/admin/sessions?success=Session updated successfully');
@@ -531,6 +616,57 @@ router.post('/promote', async (req, res) => {
   } catch (error) {
     console.error('Error promoting students:', error);
     res.redirect('/admin/promote?error=Failed to promote students');
+  }
+});
+
+// Announcements
+router.get('/announcements', async (req, res) => {
+  try {
+    const announcements = await Announcement.find().sort({ createdAt: -1 });
+    res.render('pages/admin/announcements', {
+      title: 'Manage Announcements',
+      announcements
+    });
+  } catch (error) {
+    console.error('Error loading announcements:', error);
+    res.render('pages/error', { title: 'Error', message: 'Unable to load announcements', error });
+  }
+});
+
+// Add Announcement
+router.post('/announcements/add', async (req, res) => {
+  try {
+    const { title, content, priority, targetAudience } = req.body;
+    
+    await Announcement.create({
+      title,
+      content,
+      priority: priority || 'normal',
+      targetAudience: Array.isArray(targetAudience) ? targetAudience : [targetAudience],
+      createdBy: req.session.user.email
+    });
+    
+    res.redirect('/admin/announcements?success=Announcement created successfully');
+  } catch (error) {
+    console.error('Error creating announcement:', error);
+    res.redirect('/admin/announcements?error=Failed to create announcement');
+  }
+});
+
+// Toggle Announcement Status
+router.post('/announcements/toggle/:id', async (req, res) => {
+  try {
+    const announcement = await Announcement.findById(req.params.id);
+    if (announcement) {
+      announcement.isActive = !announcement.isActive;
+      await announcement.save();
+      res.redirect('/admin/announcements?success=Announcement status updated');
+    } else {
+      res.redirect('/admin/announcements?error=Announcement not found');
+    }
+  } catch (error) {
+    console.error('Error toggling announcement:', error);
+    res.redirect('/admin/announcements?error=Failed to update announcement');
   }
 });
 

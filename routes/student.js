@@ -4,7 +4,9 @@ const Result = require('../models/Result');
 const Student = require('../models/Student');
 const Session = require('../models/Session');
 const School = require('../models/School');
+const Announcement = require('../models/Announcement');
 const PDFDocument = require('pdfkit');
+const bcrypt = require('bcrypt');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
 // All student routes require authentication and student role
@@ -42,11 +44,18 @@ router.get('/portal', async (req, res) => {
       return acc;
     }, {});
     
+    // Get announcements for students
+    const announcements = await Announcement.find({
+      isActive: true,
+      targetAudience: { $in: ['all', 'students'] }
+    }).sort({ createdAt: -1 }).limit(5);
+    
     res.render('pages/student/portal', {
       title: 'Student Portal',
       student,
       currentResults,
       activeSession,
+      announcements,
       stats: {
         totalSubjects,
         totalMarks,
@@ -172,6 +181,12 @@ router.get('/results/download', async (req, res) => {
     doc.text(`Class: ${student.currentClass}`, 50, doc.y);
     doc.text(`Session: ${session || student.currentSession}`, 300, doc.y);
     doc.text(`Term: ${term || 'First Term'}`, 50, doc.y);
+    
+    // Get student's position if available
+    const firstResult = results[0];
+    if (firstResult && firstResult.position) {
+      doc.text(`Position: ${firstResult.position}`, 300, doc.y);
+    }
     doc.moveDown();
     
     // Results table
@@ -215,6 +230,10 @@ router.get('/results/download', async (req, res) => {
     doc.text(`Total Marks: ${totalMarks}`, 50, currentY + 40);
     doc.text(`Average Score: ${averageScore}%`, 50, currentY + 60);
     
+    if (firstResult && firstResult.position) {
+      doc.text(`Class Position: ${firstResult.position}`, 50, currentY + 80);
+    }
+    
     // Footer
     doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 50, doc.page.height - 100);
     doc.text('This is a computer-generated document.', { align: 'center' }, doc.page.height - 80);
@@ -245,6 +264,39 @@ router.get('/profile', async (req, res) => {
   } catch (error) {
     console.error('Error loading student profile:', error);
     res.render('pages/error', { title: 'Error', message: 'Unable to load profile', error });
+  }
+});
+
+// Update Password
+router.post('/profile/password', async (req, res) => {
+  try {
+    const user = req.session.user;
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+    
+    const student = await Student.findById(user.id);
+    if (!student) {
+      return res.redirect('/student/profile?error=Student not found');
+    }
+    
+    // Verify current password
+    const isValidPassword = await student.comparePassword(currentPassword);
+    if (!isValidPassword) {
+      return res.redirect('/student/profile?error=Current password is incorrect');
+    }
+    
+    // Check if new passwords match
+    if (newPassword !== confirmPassword) {
+      return res.redirect('/student/profile?error=New passwords do not match');
+    }
+    
+    // Update password
+    student.password = newPassword;
+    await student.save();
+    
+    res.redirect('/student/profile?success=Password updated successfully');
+  } catch (error) {
+    console.error('Error updating password:', error);
+    res.redirect('/student/profile?error=Failed to update password');
   }
 });
 
