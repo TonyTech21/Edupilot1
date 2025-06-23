@@ -1,0 +1,154 @@
+<%- include('../../partials/header') %>
+
+<div class="student-portal">
+    <div class="portal-header">
+        <div class="student-info">
+            <img src="<%= student.passportURL %>" alt="<%= student.fullName %>" class="student-photo-large">
+            <div class="student-details">
+                <h1>Welcome, <%= student.fullName %></h1>
+                <p class="student-id">ID: <%= student.studentID %></p>
+                <p class="student-class"><%= student.currentClass %> | <%= student.currentSession %></p>
+            </div>
+        </div>
+        <div class="current-term">
+            <% if (activeSession) { %>
+                <span class="term-badge"><%= activeSession.currentTerm %></span>
+            <% } %>
+        </div>
+    </div>
+    
+    <div class="portal-stats">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-book"></i>
+            </div>
+            <div class="stat-content">
+                <h3><%= stats.totalSubjects %></h3>
+                <p>Subjects</p>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <div class="stat-content">
+                <h3><%= stats.averageScore %>%</h3>
+                <p>Average Score</p>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-trophy"></i>
+            </div>
+            <div class="stat-content">
+                <h3><%= stats.gradeDistribution.A || 0 + stats.gradeDistribution.B || 0 %></h3>
+                <p>A's & B's</p>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="fas fa-calculator"></i>
+            </div>
+            <div class="stat-content">
+                <h3><%= stats.totalMarks %></h3>
+                <p>Total Marks</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="portal-content">
+        <div class="current-results">
+            <div class="section-header">
+                <h2>Current Term Results</h2>
+                <div class="section-actions">
+                    <a href="/student/results" class="btn btn-outline">View All Results</a>
+                    <% if (currentResults.length > 0) { %>
+                        <a href="/student/results/download?term=<%= activeSession ? activeSession.currentTerm : 'First Term' %>&session=<%= student.currentSession %>" class="btn btn-primary">
+                            <i class="fas fa-download"></i> Download PDF
+                        </a>
+                    <% } %>
+                </div>
+            </div>
+            
+            <% if (currentResults.length > 0) { %>
+                <div class="results-table-container">
+                    <table class="results-table">
+                        <thead>
+                            <tr>
+                                <th>Subject</th>
+                                <th>CA1</th>
+                                <th>CA2</th>
+                                <th>Exam</th>
+                                <th>Total</th>
+                                <th>Grade</th>
+                                <th>Remark</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% currentResults.forEach(result => { %>
+                                <tr>
+                                    <td class="subject-name"><%= result.subject %></td>
+                                    <td><%= result.ca1 %></td>
+                                    <td><%= result.ca2 %></td>
+                                    <td><%= result.exam %></td>
+                                    <td class="total-score"><%= result.total %></td>
+                                    <td>
+                                        <span class="grade grade-<%= result.grade.toLowerCase() %>">
+                                            <%= result.grade %>
+                                        </span>
+                                    </td>
+                                    <td class="remark remark-<%= result.remark.toLowerCase().replace(/\s+/g, '-') %>">
+                                        <%= result.remark %>
+                                    </td>
+                                </tr>
+                            <% }) %>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="results-summary">
+                    <div class="summary-item">
+                        <span class="summary-label">Total Subjects:</span>
+                        <span class="summary-value"><%= stats.totalSubjects %></span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Total Marks:</span>
+                        <span class="summary-value"><%= stats.totalMarks %></span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Average Score:</span>
+                        <span class="summary-value"><%= stats.averageScore %>%</span>
+                    </div>
+                </div>
+            <% } else { %>
+                <div class="no-results">
+                    <div class="no-results-icon">
+                        <i class="fas fa-clipboard-list"></i>
+                    </div>
+                    <h3>No Results Available</h3>
+                    <p>Your results for the current term have not been published yet.</p>
+                </div>
+            <% } %>
+        </div>
+        
+        <div class="grade-distribution">
+            <h2>Grade Distribution</h2>
+            <div class="grade-chart">
+                <% ['A', 'B', 'C', 'D', 'E', 'F'].forEach(grade => { %>
+                    <div class="grade-bar">
+                        <div class="grade-label">Grade <%= grade %></div>
+                        <div class="grade-count"><%= stats.gradeDistribution[grade] || 0 %></div>
+                        <div class="grade-visual">
+                            <div class="grade-fill grade-<%= grade.toLowerCase() %>" style="width: <%= stats.totalSubjects > 0 ? ((stats.gradeDistribution[grade] || 0) / stats.totalSubjects * 100) : 0 %>%"></div>
+                        </div>
+                    </div>
+                <% }) %>
+            </div>
+        </div>
+    </div>
+</div>
+
+<%- include('../../partials/footer') %>

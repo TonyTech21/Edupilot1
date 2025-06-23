@@ -1,0 +1,323 @@
+<%- include('../../partials/header') %>
+
+<div class="page-content">
+    <div class="page-header">
+        <h1>Manage Academic Sessions</h1>
+        <button type="button" class="btn btn-primary" onclick="showAddSessionModal()">
+            <i class="fas fa-plus"></i> Add Session
+        </button>
+    </div>
+    
+    <% if (locals.query && query.success) { %>
+        <div class="alert alert-success">
+            <i class="fas fa-check-circle"></i>
+            <%= query.success %>
+        </div>
+    <% } %>
+    
+    <% if (locals.query && query.error) { %>
+        <div class="alert alert-error">
+            <i class="fas fa-exclamation-triangle"></i>
+            <%= query.error %>
+        </div>
+    <% } %>
+    
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Session Name</th>
+                    <th>Current Term</th>
+                    <th>Status</th>
+                    <th>Start Date</th>
+                    <th>End Date</th>
+                    <th>Term Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% if (sessions && sessions.length > 0) { %>
+                    <% sessions.forEach(session => { %>
+                        <tr>
+                            <td><strong><%= session.sessionName %></strong></td>
+                            <td>
+                                <form method="POST" action="/admin/sessions/set-term/<%= session._id %>" style="display: inline;">
+                                    <select name="currentTerm" onchange="this.form.submit()" <%= !session.isActive ? 'disabled' : '' %>>
+                                        <option value="First Term" <%= session.currentTerm === 'First Term' ? 'selected' : '' %>>First Term</option>
+                                        <option value="Second Term" <%= session.currentTerm === 'Second Term' ? 'selected' : '' %>>Second Term</option>
+                                        <option value="Third Term" <%= session.currentTerm === 'Third Term' ? 'selected' : '' %>>Third Term</option>
+                                    </select>
+                                </form>
+                            </td>
+                            <td>
+                                <% if (session.isActive) { %>
+                                    <span class="status-badge active">Active</span>
+                                <% } else { %>
+                                    <span class="status-badge inactive">Inactive</span>
+                                <% } %>
+                            </td>
+                            <td>
+                                <% if (session.startDate) { %>
+                                    <%= new Date(session.startDate).toLocaleDateString() %>
+                                <% } else { %>
+                                    <span class="text-muted">Not set</span>
+                                <% } %>
+                            </td>
+                            <td>
+                                <% if (session.endDate) { %>
+                                    <%= new Date(session.endDate).toLocaleDateString() %>
+                                <% } else { %>
+                                    <span class="text-muted">Not set</span>
+                                <% } %>
+                            </td>
+                            <td>
+                                <div class="term-status">
+                                    <span class="term-badge <%= session.firstTermLocked ? 'locked' : 'open' %>">
+                                        1st: <%= session.firstTermLocked ? 'Locked' : 'Open' %>
+                                    </span>
+                                    <span class="term-badge <%= session.secondTermLocked ? 'locked' : 'open' %>">
+                                        2nd: <%= session.secondTermLocked ? 'Locked' : 'Open' %>
+                                    </span>
+                                    <span class="term-badge <%= session.thirdTermLocked ? 'locked' : 'open' %>">
+                                        3rd: <%= session.thirdTermLocked ? 'Locked' : 'Open' %>
+                                    </span>
+                                </div>
+                            </td>
+                            <td class="actions">
+                                <% if (!session.isActive) { %>
+                                    <form method="POST" action="/admin/sessions/activate/<%= session._id %>" style="display: inline;" onsubmit="return confirm('Are you sure you want to activate this session? This will deactivate the current active session.')">
+                                        <button type="submit" class="btn btn-sm btn-success">
+                                            <i class="fas fa-play"></i> Activate
+                                        </button>
+                                    </form>
+                                <% } %>
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="editSession('<%= session._id %>', '<%= session.sessionName %>', '<%= session.startDate ? new Date(session.startDate).toISOString().split('T')[0] : '' %>', '<%= session.endDate ? new Date(session.endDate).toISOString().split('T')[0] : '' %>')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-warning" onclick="toggleTermLock('<%= session._id %>', '<%= session.currentTerm %>')">
+                                    <i class="fas fa-lock"></i> Lock Term
+                                </button>
+                            </td>
+                        </tr>
+                    <% }) %>
+                <% } else { %>
+                    <tr>
+                        <td colspan="7" class="text-center">No sessions found</td>
+                    </tr>
+                <% } %>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Add Session Modal -->
+<div id="addSessionModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Add New Session</h3>
+            <button type="button" class="close-modal" onclick="hideAddSessionModal()">&times;</button>
+        </div>
+        <form method="POST" action="/admin/sessions/add">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="sessionName">Session Name *</label>
+                    <input type="text" id="sessionName" name="sessionName" required placeholder="e.g., 2024/2025">
+                </div>
+                <div class="form-group">
+                    <label for="startDate">Start Date</label>
+                    <input type="date" id="startDate" name="startDate">
+                </div>
+                <div class="form-group">
+                    <label for="endDate">End Date</label>
+                    <input type="date" id="endDate" name="endDate">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-primary">Add Session</button>
+                <button type="button" class="btn btn-outline" onclick="hideAddSessionModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Session Modal -->
+<div id="editSessionModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Edit Session</h3>
+            <button type="button" class="close-modal" onclick="hideEditSessionModal()">&times;</button>
+        </div>
+        <form id="editSessionForm" method="POST">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="editSessionName">Session Name *</label>
+                    <input type="text" id="editSessionName" name="sessionName" required>
+                </div>
+                <div class="form-group">
+                    <label for="editStartDate">Start Date</label>
+                    <input type="date" id="editStartDate" name="startDate">
+                </div>
+                <div class="form-group">
+                    <label for="editEndDate">End Date</label>
+                    <input type="date" id="editEndDate" name="endDate">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-primary">Update Session</button>
+                <button type="button" class="btn btn-outline" onclick="hideEditSessionModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.status-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.status-badge.active {
+    background-color: #d1fae5;
+    color: #065f46;
+}
+
+.status-badge.inactive {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.term-status {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.term-badge {
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.25rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+}
+
+.term-badge.open {
+    background-color: #d1fae5;
+    color: #065f46;
+}
+
+.term-badge.locked {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 0.5rem;
+    width: 90%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    padding: 1rem;
+    border-bottom: 1px solid var(--medium-gray);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-body {
+    padding: 1rem;
+}
+
+.modal-footer {
+    padding: 1rem;
+    border-top: 1px solid var(--medium-gray);
+    display: flex;
+    gap: 1rem;
+    justify-content: flex-end;
+}
+
+.close-modal {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--secondary-color);
+}
+
+.text-muted {
+    color: #6b7280;
+    font-style: italic;
+}
+</style>
+
+<script>
+function showAddSessionModal() {
+    document.getElementById('addSessionModal').style.display = 'flex';
+}
+
+function hideAddSessionModal() {
+    document.getElementById('addSessionModal').style.display = 'none';
+}
+
+function editSession(id, name, startDate, endDate) {
+    document.getElementById('editSessionForm').action = `/admin/sessions/edit/${id}`;
+    document.getElementById('editSessionName').value = name;
+    document.getElementById('editStartDate').value = startDate;
+    document.getElementById('editEndDate').value = endDate;
+    document.getElementById('editSessionModal').style.display = 'flex';
+}
+
+function hideEditSessionModal() {
+    document.getElementById('editSessionModal').style.display = 'none';
+}
+
+function toggleTermLock(sessionId, currentTerm) {
+    if (confirm(`Are you sure you want to lock ${currentTerm}? This action cannot be undone.`)) {
+        fetch(`/admin/sessions/lock-term/${sessionId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ term: currentTerm })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred');
+        });
+    }
+}
+
+// Close modals when clicking outside
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('modal')) {
+        e.target.style.display = 'none';
+    }
+});
+</script>
+
+<%- include('../../partials/footer') %>

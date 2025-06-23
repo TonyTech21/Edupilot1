@@ -1,0 +1,70 @@
+<%- include('../partials/header') %>
+
+<div class="login-page">
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="logo">
+                    <i class="fas fa-graduation-cap"></i>
+                    <h1>EduControl NG</h1>
+                </div>
+                <p>Access your school portal</p>
+            </div>
+            
+            <% if (locals.error) { %>
+                <div class="alert alert-error">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <%= error %>
+                </div>
+            <% } %>
+            
+            <form class="login-form" method="POST" action="/login">
+                <div class="form-group">
+                    <label for="loginType">Login As:</label>
+                    <select name="loginType" id="loginType" required>
+                        <option value="staff">Staff (Admin/Teacher/Officer)</option>
+                        <option value="student">Student</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="email" id="emailLabel">Email Address</label>
+                    <input type="text" id="email" name="email" required>
+                    <i class="fas fa-envelope input-icon"></i>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required>
+                    <i class="fas fa-lock input-icon"></i>
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-block">
+                    <i class="fas fa-sign-in-alt"></i>
+                    Login
+                </button>
+            </form>
+            
+            <div class="login-help">
+                <p>Having trouble logging in? Contact the school administration.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('loginType').addEventListener('change', function() {
+    const emailLabel = document.getElementById('emailLabel');
+    const emailInput = document.getElementById('email');
+    
+    if (this.value === 'student') {
+        emailLabel.textContent = 'Student ID';
+        emailInput.placeholder = 'Enter your Student ID';
+    } else {
+        emailLabel.textContent = 'Email Address';
+        emailInput.placeholder = 'Enter your email address';
+    }
+});
+</script>
+
+<%- include('../partials/footer') %>

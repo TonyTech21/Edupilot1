@@ -1,0 +1,153 @@
+const express = require('express');
+const router = express.Router();
+const User = require('../models/User');
+const Student = require('../models/Student');
+const School = require('../models/School');
+
+// Landing Page
+router.get('/', async (req, res) => {
+  try {
+    const school = await School.findOne();
+    res.render('pages/landing', {
+      title: 'Welcome to EduControl NG',
+      school: school
+    });
+  } catch (error) {
+    console.error('Error loading landing page:', error);
+    res.render('pages/landing', {
+      title: 'Welcome to EduControl NG',
+      school: null
+    });
+  }
+});
+
+// Login Page
+router.get('/login', (req, res) => {
+  if (req.session.user) {
+    return res.redirect('/dashboard');
+  }
+  res.render('pages/login', {
+    title: 'Login - EduControl NG',
+    error: null
+  });
+});
+
+// Login POST
+router.post('/login', async (req, res) => {
+  const { email, password, loginType } = req.body;
+
+  console.log('Login attempt:', { email, loginType });
+
+  try {
+    if (loginType === 'student') {
+      // Student login using Student ID
+      const student = await Student.findOne({ studentID: email });
+      
+      if (!student) {
+        console.log('Student login failed: Student not found');
+        return res.render('pages/login', {
+          title: 'Login - EduControl NG',
+          error: 'Invalid Student ID or Password'
+        });
+      }
+
+      const isValidPassword = await student.comparePassword(password);
+      
+      if (!isValidPassword) {
+        console.log('Student login failed: Invalid password');
+        return res.render('pages/login', {
+          title: 'Login - EduControl NG',
+          error: 'Invalid Student ID or Password'
+        });
+      }
+
+      if (!student.isActive) {
+        console.log('Student login failed: Account deactivated');
+        return res.render('pages/login', {
+          title: 'Login - EduControl NG',
+          error: 'Your account has been deactivated. Contact the school administration.'
+        });
+      }
+
+      req.session.user = {
+        id: student._id,
+        name: student.fullName,
+        studentID: student.studentID,
+        role: 'student',
+        currentClass: student.currentClass,
+        currentSession: student.currentSession
+      };
+
+      console.log('Student login successful');
+      return res.redirect('/student/portal');
+    } else {
+      // Staff login
+      console.log('Looking for staff user with email:', email);
+      const user = await User.findOne({ email });
+      
+      if (!user) {
+        console.log('Staff login failed: User not found');
+        return res.render('pages/login', {
+          title: 'Login - EduControl NG',
+          error: 'Invalid email or password'
+        });
+      }
+
+      console.log('Found user:', {
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        isActive: user.isActive
+      });
+
+      const isValidPassword = await user.comparePassword(password);
+      console.log('Password validation result:', isValidPassword);
+      
+      if (!isValidPassword) {
+        console.log('Staff login failed: Invalid password');
+        return res.render('pages/login', {
+          title: 'Login - EduControl NG',
+          error: 'Invalid email or password'
+        });
+      }
+
+      if (!user.isActive) {
+        console.log('Staff login failed: Account deactivated');
+        return res.render('pages/login', {
+          title: 'Login - EduControl NG',
+          error: 'Your account has been deactivated. Contact the administrator.'
+        });
+      }
+
+      req.session.user = {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        assignedSubjects: user.assignedSubjects,
+        assignedClasses: user.assignedClasses
+      };
+
+      console.log('Staff login successful, redirecting to dashboard');
+      return res.redirect('/dashboard');
+    }
+  } catch (error) {
+    console.error('Login error:', error);
+    res.render('pages/login', {
+      title: 'Login - EduControl NG',
+      error: 'An error occurred during login. Please try again.'
+    });
+  }
+});
+
+// Logout
+router.get('/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      console.error('Logout error:', err);
+    }
+    res.redirect('/login');
+  });
+});
+
+module.exports = router;
