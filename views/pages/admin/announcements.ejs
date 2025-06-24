@@ -56,9 +56,17 @@
                             <td><%= announcement.createdBy %></td>
                             <td><%= new Date(announcement.createdAt).toLocaleDateString() %></td>
                             <td class="actions">
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="editAnnouncement('<%= announcement._id %>', '<%= announcement.title %>', '<%= announcement.content %>', '<%= announcement.priority %>', '<%= announcement.targetAudience.join(',') %>')">
+                                    <i class="fas fa-edit"></i>
+                                </button>
                                 <form method="POST" action="/admin/announcements/toggle/<%= announcement._id %>" style="display: inline;">
                                     <button type="submit" class="btn btn-sm <%= announcement.isActive ? 'btn-warning' : 'btn-success' %>">
                                         <i class="fas fa-<%= announcement.isActive ? 'ban' : 'check' %>"></i>
+                                    </button>
+                                </form>
+                                <form method="POST" action="/admin/announcements/delete/<%= announcement._id %>" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this announcement?')">
+                                    <button type="submit" class="btn btn-sm btn-danger">
+                                        <i class="fas fa-trash"></i>
                                     </button>
                                 </form>
                             </td>
@@ -114,6 +122,51 @@
             <div class="modal-footer">
                 <button type="submit" class="btn btn-primary">Create Announcement</button>
                 <button type="button" class="btn btn-outline" onclick="hideAddModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Announcement Modal -->
+<div id="editModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Edit Announcement</h3>
+            <button type="button" class="close-modal" onclick="hideEditModal()">&times;</button>
+        </div>
+        <form id="editForm" method="POST">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="editTitle">Title *</label>
+                    <input type="text" id="editTitle" name="title" required>
+                </div>
+                <div class="form-group">
+                    <label for="editContent">Content *</label>
+                    <textarea id="editContent" name="content" rows="4" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="editPriority">Priority</label>
+                    <select id="editPriority" name="priority">
+                        <option value="low">Low</option>
+                        <option value="normal">Normal</option>
+                        <option value="high">High</option>
+                        <option value="urgent">Urgent</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="editTargetAudience">Target Audience</label>
+                    <select id="editTargetAudience" name="targetAudience" multiple>
+                        <option value="all">All</option>
+                        <option value="students">Students</option>
+                        <option value="teachers">Teachers</option>
+                        <option value="parents">Parents</option>
+                    </select>
+                    <small>Hold Ctrl/Cmd to select multiple</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-primary">Update Announcement</button>
+                <button type="button" class="btn btn-outline" onclick="hideEditModal()">Cancel</button>
             </div>
         </form>
     </div>
@@ -207,6 +260,35 @@ function showAddModal() {
 
 function hideAddModal() {
     document.getElementById('addModal').style.display = 'none';
+}
+
+function editAnnouncement(id, title, content, priority, targetAudience) {
+    document.getElementById('editForm').action = `/admin/announcements/edit/${id}`;
+    document.getElementById('editTitle').value = title;
+    document.getElementById('editContent').value = content;
+    document.getElementById('editPriority').value = priority;
+    
+    // Clear previous selections
+    const targetSelect = document.getElementById('editTargetAudience');
+    for (let option of targetSelect.options) {
+        option.selected = false;
+    }
+    
+    // Set selected audiences
+    const audiences = targetAudience.split(',');
+    for (let audience of audiences) {
+        for (let option of targetSelect.options) {
+            if (option.value === audience.trim()) {
+                option.selected = true;
+            }
+        }
+    }
+    
+    document.getElementById('editModal').style.display = 'flex';
+}
+
+function hideEditModal() {
+    document.getElementById('editModal').style.display = 'none';
 }
 
 // Close modal when clicking outside

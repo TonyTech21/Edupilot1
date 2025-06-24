@@ -3,6 +3,7 @@ const router = express.Router();
 const User = require('../models/User');
 const Student = require('../models/Student');
 const School = require('../models/School');
+const Announcement = require('../models/Announcement');
 
 // Landing Page
 router.get('/', async (req, res) => {
@@ -79,6 +80,15 @@ router.post('/login', async (req, res) => {
       };
 
       console.log('Student login successful');
+      
+      // Get announcements for popup
+      const announcements = await Announcement.find({
+        isActive: true,
+        targetAudience: { $in: ['all', 'students'] }
+      }).sort({ createdAt: -1 }).limit(3);
+      
+      req.session.announcements = announcements;
+      
       return res.redirect('/student/portal');
     } else {
       // Staff login

@@ -50,12 +50,17 @@ router.get('/portal', async (req, res) => {
       targetAudience: { $in: ['all', 'students'] }
     }).sort({ createdAt: -1 }).limit(5);
     
+    // Get login announcements from session
+    const loginAnnouncements = req.session.announcements || [];
+    delete req.session.announcements; // Clear after showing
+    
     res.render('pages/student/portal', {
       title: 'Student Portal',
       student,
       currentResults,
       activeSession,
       announcements,
+      loginAnnouncements,
       stats: {
         totalSubjects,
         totalMarks,

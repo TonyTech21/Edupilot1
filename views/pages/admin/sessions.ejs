@@ -85,15 +85,15 @@
                             </td>
                             <td>
                                 <div class="term-status">
-                                    <span class="term-badge <%= session.firstTermLocked ? 'locked' : 'open' %>">
+                                    <button class="term-badge <%= session.firstTermLocked ? 'locked' : 'open' %>" onclick="toggleTermLock('<%= session._id %>', 'First Term')">
                                         1st: <%= session.firstTermLocked ? 'Locked' : 'Open' %>
-                                    </span>
-                                    <span class="term-badge <%= session.secondTermLocked ? 'locked' : 'open' %>">
+                                    </button>
+                                    <button class="term-badge <%= session.secondTermLocked ? 'locked' : 'open' %>" onclick="toggleTermLock('<%= session._id %>', 'Second Term')">
                                         2nd: <%= session.secondTermLocked ? 'Locked' : 'Open' %>
-                                    </span>
-                                    <span class="term-badge <%= session.thirdTermLocked ? 'locked' : 'open' %>">
+                                    </button>
+                                    <button class="term-badge <%= session.thirdTermLocked ? 'locked' : 'open' %>" onclick="toggleTermLock('<%= session._id %>', 'Third Term')">
                                         3rd: <%= session.thirdTermLocked ? 'Locked' : 'Open' %>
-                                    </span>
+                                    </button>
                                 </div>
                             </td>
                             <td class="actions">
@@ -107,11 +107,11 @@
                                 <button type="button" class="btn btn-sm btn-secondary" onclick="editSession('<%= session._id %>', '<%= session.sessionName %>', '<%= session.startDate ? new Date(session.startDate).toISOString().split('T')[0] : '' %>', '<%= session.endDate ? new Date(session.endDate).toISOString().split('T')[0] : '' %>', '<%= session.firstTermStart ? new Date(session.firstTermStart).toISOString().split('T')[0] : '' %>', '<%= session.firstTermEnd ? new Date(session.firstTermEnd).toISOString().split('T')[0] : '' %>', '<%= session.secondTermStart ? new Date(session.secondTermStart).toISOString().split('T')[0] : '' %>', '<%= session.secondTermEnd ? new Date(session.secondTermEnd).toISOString().split('T')[0] : '' %>', '<%= session.thirdTermStart ? new Date(session.thirdTermStart).toISOString().split('T')[0] : '' %>', '<%= session.thirdTermEnd ? new Date(session.thirdTermEnd).toISOString().split('T')[0] : '' %>')">
                                     <i class="fas fa-edit"></i>
                                 </button>
-                                <% if (session.isActive) { %>
-                                    <button type="button" class="btn btn-sm btn-warning" onclick="toggleTermLock('<%= session._id %>', '<%= session.currentTerm %>')">
-                                        <i class="fas fa-lock"></i>
+                                <form method="POST" action="/admin/sessions/delete/<%= session._id %>" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this session? This action cannot be undone.')">
+                                    <button type="submit" class="btn btn-sm btn-danger">
+                                        <i class="fas fa-trash"></i>
                                     </button>
-                                <% } %>
+                                </form>
                             </td>
                         </tr>
                     <% }) %>
@@ -278,6 +278,9 @@
     border-radius: 0.25rem;
     font-size: 0.7rem;
     font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
 }
 
 .term-badge.open {
@@ -288,6 +291,10 @@
 .term-badge.locked {
     background-color: #fee2e2;
     color: #991b1b;
+}
+
+.term-badge:hover {
+    opacity: 0.8;
 }
 
 .date-info, .term-dates {
@@ -378,28 +385,26 @@ function hideEditSessionModal() {
     document.getElementById('editSessionModal').style.display = 'none';
 }
 
-function toggleTermLock(sessionId, currentTerm) {
-    if (confirm(`Are you sure you want to lock ${currentTerm}? This action cannot be undone.`)) {
-        fetch(`/admin/sessions/lock-term/${sessionId}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ term: currentTerm })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert('Error: ' + data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('An error occurred');
-        });
-    }
+function toggleTermLock(sessionId, term) {
+    fetch(`/admin/sessions/toggle-term-lock/${sessionId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ term: term })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred');
+    });
 }
 
 // Close modals when clicking outside

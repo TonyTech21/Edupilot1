@@ -509,6 +509,17 @@ router.post('/sessions/edit/:id', async (req, res) => {
   }
 });
 
+// Delete Session
+router.post('/sessions/delete/:id', async (req, res) => {
+  try {
+    await Session.findByIdAndDelete(req.params.id);
+    res.redirect('/admin/sessions?success=Session deleted successfully');
+  } catch (error) {
+    console.error('Error deleting session:', error);
+    res.redirect('/admin/sessions?error=Failed to delete session');
+  }
+});
+
 // Set Active Session
 router.post('/sessions/activate/:id', async (req, res) => {
   try {
@@ -532,8 +543,8 @@ router.post('/sessions/set-term/:id', async (req, res) => {
   }
 });
 
-// Lock Term
-router.post('/sessions/lock-term/:id', async (req, res) => {
+// Lock/Unlock Term
+router.post('/sessions/toggle-term-lock/:id', async (req, res) => {
   try {
     const { term } = req.body;
     const session = await Session.findById(req.params.id);
@@ -545,77 +556,123 @@ router.post('/sessions/lock-term/:id', async (req, res) => {
     const lockField = term === 'First Term' ? 'firstTermLocked' : 
                      term === 'Second Term' ? 'secondTermLocked' : 'thirdTermLocked';
     
-    session[lockField] = true;
+    session[lockField] = !session[lockField];
     await session.save();
     
-    res.json({ success: true, message: `${term} locked successfully` });
-  } catch (error) {
-    console.error('Error locking term:', error);
-    res.status(500).json({ success: false, message: 'Failed to lock term' });
-  }
-});
-
-// Student Promotion
-router.get('/promote', async (req, res) => {
-  try {
-    const activeSession = await Session.getActiveSession();
-    
-    if (!activeSession || activeSession.currentTerm !== 'Third Term') {
-      return res.render('pages/admin/promote', {
-        title: 'Student Promotion',
-        error: 'Student promotion is only available during Third Term',
-        students: [],
-        classes: [],
-        activeSession
-      });
-    }
-    
-    const students = await Student.find({ isActive: true }).sort({ currentClass: 1, fullName: 1 });
-    const classes = await Class.find({ isActive: true }).sort({ className: 1 });
-    
-    res.render('pages/admin/promote', {
-      title: 'Student Promotion',
-      students,
-      classes,
-      activeSession
+    res.json({ 
+      success: true, 
+      message: `${term} ${session[lockField] ? 'locked' : 'unlocked'} successfully`,
+      locked: session[lockField]
     });
   } catch (error) {
-    console.error('Error loading promotion page:', error);
-    res.render('pages/error', { title: 'Error', message: 'Unable to load promotion page', error });
+    console.error('Error toggling term lock:', error);
+    res.status(500).json({ success: false, message: 'Failed to toggle term lock' });
   }
 });
 
-// Process Promotion
-router.post('/promote', async (req, res) => {
+// Score Entry Page
+router.get('/score-entry', async (req, res) => {
   try {
-    const { studentIds, newClass } = req.body;
     const activeSession = await Session.getActiveSession();
+    const classes = await Class.find({ isActive: true }).sort({ className: 1 });
     
-    const studentList = Array.isArray(studentIds) ? studentIds : [studentIds];
+    // Get filter parameters
+    const selectedClass = req.query.class;
+    const selectedSubject = req.query.subject;
+    const selectedTerm = req.query.term || (activeSession ? activeSession.currentTerm : 'First Term');
     
-    for (const studentId of studentList) {
-      const student = await Student.findById(studentId);
-      if (student) {
-        // Archive current session
-        student.archivedSessions.push({
-          sessionName: student.currentSession,
-          className: student.currentClass,
-          promoted: true,
-          promotionDate: new Date()
+    let students = [];
+    let subjects = [];
+    let existingResults = [];
+    
+    if (selectedClass) {
+      // Get students in the selected class
+      students = await Student.find({
+        currentClass: selectedClass,
+        isActive: true
+      }).sort({ fullName: 1 });
+      
+      // Get subjects for the selected class
+      const classDoc = await Class.findOne({ className: selectedClass });
+      subjects = classDoc ? classDoc.assignedSubjects : [];
+      
+      if (selectedSubject) {
+        // Get existing results for this class and subject
+        existingResults = await Result.find({
+          className: selectedClass,
+          subject: selectedSubject,
+          term: selectedTerm,
+          session: activeSession ? activeSession.sessionName : ''
         });
-        
-        // Update to new class
-        student.currentClass = newClass;
-        student.currentSession = activeSession.sessionName;
-        
-        await student.save();
       }
     }
     
-    res.redirect('/admin/promote?success=Students promoted successfully');
+    res.render('pages/admin/score-entry', {
+      title: 'Score Entry',
+      classes,
+      subjects,
+      students,
+      existingResults,
+      selectedClass,
+      selectedSubject,
+      selectedTerm,
+      activeSession
+    });
   } catch (error) {
-    console.error('Error promoting students:', error);
-    res.redirect('/admin/promote?error=Failed to promote students');
+    console.error('Error loading score entry page:', error);
+    res.render('pages/error', { title: 'Error', message: 'Unable to load score entry page', error });
+  }
+});
+
+// Save Scores
+router.post('/score-entry/save', async (req, res) => {
+  try {
+    const { className, subject, term, session, results } = req.body;
+    
+    const resultPromises = results.map(async (result) => {
+      const { studentID, studentName, ca1, ca2, exam } = result;
+      
+      // Find existing result or create new one
+      const existingResult = await Result.findOne({
+        studentID,
+        className,
+        subject,
+        term,
+        session
+      });
+      
+      if (existingResult) {
+        // Update existing result
+        existingResult.ca1 = parseFloat(ca1) || 0;
+        existingResult.ca2 = parseFloat(ca2) || 0;
+        existingResult.exam = parseFloat(exam) || 0;
+        existingResult.enteredBy = req.session.user.email;
+        existingResult.published = false; // Reset published status when updated
+        
+        return existingResult.save();
+      } else {
+        // Create new result
+        return Result.create({
+          studentID,
+          studentName,
+          className,
+          subject,
+          term,
+          session,
+          ca1: parseFloat(ca1) || 0,
+          ca2: parseFloat(ca2) || 0,
+          exam: parseFloat(exam) || 0,
+          enteredBy: req.session.user.email
+        });
+      }
+    });
+    
+    await Promise.all(resultPromises);
+    
+    res.json({ success: true, message: 'Scores saved successfully' });
+  } catch (error) {
+    console.error('Error saving scores:', error);
+    res.status(500).json({ success: false, message: 'Failed to save scores' });
   }
 });
 
@@ -650,6 +707,36 @@ router.post('/announcements/add', async (req, res) => {
   } catch (error) {
     console.error('Error creating announcement:', error);
     res.redirect('/admin/announcements?error=Failed to create announcement');
+  }
+});
+
+// Edit Announcement
+router.post('/announcements/edit/:id', async (req, res) => {
+  try {
+    const { title, content, priority, targetAudience } = req.body;
+    
+    await Announcement.findByIdAndUpdate(req.params.id, {
+      title,
+      content,
+      priority: priority || 'normal',
+      targetAudience: Array.isArray(targetAudience) ? targetAudience : [targetAudience]
+    });
+    
+    res.redirect('/admin/announcements?success=Announcement updated successfully');
+  } catch (error) {
+    console.error('Error updating announcement:', error);
+    res.redirect('/admin/announcements?error=Failed to update announcement');
+  }
+});
+
+// Delete Announcement
+router.post('/announcements/delete/:id', async (req, res) => {
+  try {
+    await Announcement.findByIdAndDelete(req.params.id);
+    res.redirect('/admin/announcements?success=Announcement deleted successfully');
+  } catch (error) {
+    console.error('Error deleting announcement:', error);
+    res.redirect('/admin/announcements?error=Failed to delete announcement');
   }
 });
 
