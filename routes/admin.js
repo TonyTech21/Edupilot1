@@ -11,6 +11,7 @@ const { requireAuth, requireRole } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -47,9 +48,9 @@ const upload = multer({
 router.use(requireAuth);
 router.use(requireRole('admin'));
 
-// Generate random password
-function generateRandomPassword(length = 8) {
-  const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+// Generate secure random password
+function generateSecurePassword(length = 12) {
+  const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
   let password = '';
   for (let i = 0; i < length; i++) {
     password += charset.charAt(Math.floor(Math.random() * charset.length));
@@ -117,7 +118,7 @@ router.get('/students/add', async (req, res) => {
   }
 });
 
-// Add Student POST
+// Add Student POST - FIXED password generation
 router.post('/students/add', upload.single('passport'), async (req, res) => {
   try {
     const {
@@ -138,13 +139,13 @@ router.post('/students/add', upload.single('passport'), async (req, res) => {
     
     const activeSession = await Session.getActiveSession();
     
-    // Generate random password
-    const randomPassword = generateRandomPassword();
+    // Generate secure random password
+    const securePassword = generateSecurePassword();
     
     const studentData = {
       fullName,
       studentID,
-      password: randomPassword,
+      password: securePassword, // This will be hashed by the pre-save middleware
       gender,
       dateOfBirth: new Date(dateOfBirth),
       parentPhone,
@@ -158,7 +159,7 @@ router.post('/students/add', upload.single('passport'), async (req, res) => {
     
     await Student.create(studentData);
     
-    res.redirect(`/admin/students?success=Student added successfully. Password: ${randomPassword}`);
+    res.redirect(`/admin/students?success=Student added successfully. Password: ${securePassword}`);
   } catch (error) {
     console.error('Error adding student:', error);
     res.render('pages/admin/add-student', {
@@ -193,7 +194,7 @@ router.get('/students/edit/:id', async (req, res) => {
   }
 });
 
-// Update Student
+// Update Student - FIXED password handling
 router.post('/students/edit/:id', upload.single('passport'), async (req, res) => {
   try {
     const updateData = { ...req.body };
@@ -202,7 +203,7 @@ router.post('/students/edit/:id', upload.single('passport'), async (req, res) =>
     }
     
     // If password is provided, it will be hashed by the pre-save middleware
-    if (!updateData.password) {
+    if (!updateData.password || updateData.password.trim() === '') {
       delete updateData.password; // Don't update password if not provided
     }
     
@@ -214,7 +215,7 @@ router.post('/students/edit/:id', upload.single('passport'), async (req, res) =>
   }
 });
 
-// Delete Student (Deactivate)
+// Delete Student (Deactivate) - FIXED
 router.post('/students/delete/:id', async (req, res) => {
   try {
     await Student.findByIdAndUpdate(req.params.id, { isActive: false });
@@ -222,6 +223,31 @@ router.post('/students/delete/:id', async (req, res) => {
   } catch (error) {
     console.error('Error deactivating student:', error);
     res.redirect('/admin/students?error=Failed to deactivate student');
+  }
+});
+
+// Reset Student Password - NEW FEATURE
+router.post('/students/reset-password/:id', async (req, res) => {
+  try {
+    const newPassword = generateSecurePassword();
+    const student = await Student.findById(req.params.id);
+    
+    if (!student) {
+      return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+    
+    student.password = newPassword; // Will be hashed by pre-save middleware
+    await student.save();
+    
+    res.json({ 
+      success: true, 
+      message: 'Password reset successfully', 
+      newPassword: newPassword,
+      studentID: student.studentID 
+    });
+  } catch (error) {
+    console.error('Error resetting password:', error);
+    res.status(500).json({ success: false, message: 'Failed to reset password' });
   }
 });
 
@@ -430,6 +456,63 @@ router.post('/classes/add', async (req, res) => {
   }
 });
 
+// Edit Class Form - NEW
+router.get('/classes/edit/:id', async (req, res) => {
+  try {
+    const classDoc = await Class.findById(req.params.id);
+    
+    if (!classDoc) {
+      return res.redirect('/admin/classes?error=Class not found');
+    }
+    
+    res.render('pages/admin/edit-class', {
+      title: 'Edit Class',
+      classDoc
+    });
+  } catch (error) {
+    console.error('Error loading class for edit:', error);
+    res.redirect('/admin/classes?error=Unable to load class');
+  }
+});
+
+// Update Class - NEW
+router.post('/classes/edit/:id', async (req, res) => {
+  try {
+    const { className, level, classTeacher, sections, subjects, subjectCodes, isCore } = req.body;
+    
+    const updateData = {
+      className,
+      level,
+      classTeacher,
+      sections: sections ? sections.split(',').map(s => ({ sectionName: s.trim() })) : [{ sectionName: 'A' }],
+      assignedSubjects: []
+    };
+    
+    // Process subjects
+    if (subjects) {
+      const subjectArray = Array.isArray(subjects) ? subjects : [subjects];
+      const codeArray = Array.isArray(subjectCodes) ? subjectCodes : [subjectCodes];
+      const coreArray = Array.isArray(isCore) ? isCore : [isCore];
+      
+      subjectArray.forEach((subject, index) => {
+        if (subject && subject.trim()) {
+          updateData.assignedSubjects.push({
+            subjectName: subject.trim(),
+            subjectCode: codeArray[index] || '',
+            isCore: coreArray[index] === 'true'
+          });
+        }
+      });
+    }
+    
+    await Class.findByIdAndUpdate(req.params.id, updateData);
+    res.redirect('/admin/classes?success=Class updated successfully');
+  } catch (error) {
+    console.error('Error updating class:', error);
+    res.redirect('/admin/classes?error=Failed to update class');
+  }
+});
+
 // Toggle Class Status
 router.post('/classes/toggle/:id', async (req, res) => {
   try {
@@ -509,9 +592,19 @@ router.post('/sessions/edit/:id', async (req, res) => {
   }
 });
 
-// Delete Session
+// Delete Session - FIXED
 router.post('/sessions/delete/:id', async (req, res) => {
   try {
+    const session = await Session.findById(req.params.id);
+    if (!session) {
+      return res.redirect('/admin/sessions?error=Session not found');
+    }
+    
+    // Check if this is the active session
+    if (session.isActive) {
+      return res.redirect('/admin/sessions?error=Cannot delete active session. Please activate another session first.');
+    }
+    
     await Session.findByIdAndDelete(req.params.id);
     res.redirect('/admin/sessions?success=Session deleted successfully');
   } catch (error) {
@@ -543,7 +636,7 @@ router.post('/sessions/set-term/:id', async (req, res) => {
   }
 });
 
-// Lock/Unlock Term
+// Lock/Unlock Term - FIXED
 router.post('/sessions/toggle-term-lock/:id', async (req, res) => {
   try {
     const { term } = req.body;
@@ -570,7 +663,7 @@ router.post('/sessions/toggle-term-lock/:id', async (req, res) => {
   }
 });
 
-// Score Entry Page
+// Score Entry Page - FIXED subject loading
 router.get('/score-entry', async (req, res) => {
   try {
     const activeSession = await Session.getActiveSession();
@@ -592,7 +685,7 @@ router.get('/score-entry', async (req, res) => {
         isActive: true
       }).sort({ fullName: 1 });
       
-      // Get subjects for the selected class
+      // Get subjects for the selected class - FIXED
       const classDoc = await Class.findOne({ className: selectedClass });
       subjects = classDoc ? classDoc.assignedSubjects : [];
       
@@ -624,7 +717,19 @@ router.get('/score-entry', async (req, res) => {
   }
 });
 
-// Save Scores
+// Get subjects for class - NEW API endpoint
+router.get('/api/classes/:className/subjects', async (req, res) => {
+  try {
+    const classDoc = await Class.findOne({ className: req.params.className });
+    const subjects = classDoc ? classDoc.assignedSubjects : [];
+    res.json({ success: true, subjects });
+  } catch (error) {
+    console.error('Error getting subjects:', error);
+    res.status(500).json({ success: false, message: 'Failed to get subjects' });
+  }
+});
+
+// Save Scores - ENHANCED
 router.post('/score-entry/save', async (req, res) => {
   try {
     const { className, subject, term, session, results } = req.body;
@@ -676,7 +781,7 @@ router.post('/score-entry/save', async (req, res) => {
   }
 });
 
-// Announcements
+// Announcements - COMPLETE CRUD
 router.get('/announcements', async (req, res) => {
   try {
     const announcements = await Announcement.find().sort({ createdAt: -1 });

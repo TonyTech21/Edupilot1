@@ -9,15 +9,22 @@ const Announcement = require('../models/Announcement');
 router.get('/', async (req, res) => {
   try {
     const school = await School.findOne();
+    const announcements = await Announcement.find({
+      isActive: true,
+      targetAudience: { $in: ['all'] }
+    }).sort({ createdAt: -1 }).limit(3);
+    
     res.render('pages/landing', {
       title: 'Welcome to EduControl NG',
-      school: school
+      school: school,
+      announcements
     });
   } catch (error) {
     console.error('Error loading landing page:', error);
     res.render('pages/landing', {
       title: 'Welcome to EduControl NG',
-      school: null
+      school: null,
+      announcements: []
     });
   }
 });
@@ -33,7 +40,7 @@ router.get('/login', (req, res) => {
   });
 });
 
-// Login POST
+// Login POST - FIXED student authentication
 router.post('/login', async (req, res) => {
   const { email, password, loginType } = req.body;
 
@@ -52,7 +59,9 @@ router.post('/login', async (req, res) => {
         });
       }
 
+      console.log('Student found, checking password...');
       const isValidPassword = await student.comparePassword(password);
+      console.log('Password validation result:', isValidPassword);
       
       if (!isValidPassword) {
         console.log('Student login failed: Invalid password');

@@ -57,6 +57,29 @@
         </div>
     </div>
 
+    <!-- Announcements Section -->
+    <% if (announcements && announcements.length > 0) { %>
+    <div class="announcements-section">
+        <div class="container">
+            <h2>Latest Announcements</h2>
+            <div class="announcements-grid">
+                <% announcements.forEach(announcement => { %>
+                    <div class="announcement-card priority-<%= announcement.priority %>">
+                        <div class="announcement-header">
+                            <h3><%= announcement.title %></h3>
+                            <span class="announcement-priority"><%= announcement.priority %></span>
+                        </div>
+                        <p><%= announcement.content %></p>
+                        <small class="announcement-date">
+                            <%= new Date(announcement.createdAt).toLocaleDateString() %>
+                        </small>
+                    </div>
+                <% }) %>
+            </div>
+        </div>
+    </div>
+    <% } %>
+
     <% if (school) { %>
     <div class="about-section">
         <div class="container">
@@ -105,5 +128,82 @@
     </div>
     <% } %>
 </div>
+
+<style>
+.announcements-section {
+    padding: 4rem 0;
+    background: var(--light-gray);
+    color: var(--dark-gray);
+}
+
+.announcements-section h2 {
+    text-align: center;
+    font-size: 2.5rem;
+    margin-bottom: 3rem;
+    color: var(--primary-color);
+}
+
+.announcements-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+}
+
+.announcement-card {
+    background: var(--white);
+    padding: 2rem;
+    border-radius: 0.5rem;
+    box-shadow: var(--shadow);
+    border-left: 4px solid;
+    transition: transform 0.2s;
+}
+
+.announcement-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.announcement-card.priority-low {
+    border-left-color: #6b7280;
+}
+
+.announcement-card.priority-normal {
+    border-left-color: #3b82f6;
+}
+
+.announcement-card.priority-high {
+    border-left-color: #f59e0b;
+}
+
+.announcement-card.priority-urgent {
+    border-left-color: #ef4444;
+}
+
+.announcement-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.announcement-header h3 {
+    margin: 0;
+    color: var(--primary-color);
+}
+
+.announcement-priority {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    background: var(--primary-color);
+    color: var(--white);
+    text-transform: uppercase;
+}
+
+.announcement-date {
+    color: var(--secondary-color);
+    font-size: 0.875rem;
+}
+</style>
 
 <%- include('../partials/footer') %>

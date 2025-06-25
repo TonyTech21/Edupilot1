@@ -145,6 +145,32 @@ document.addEventListener('DOMContentLoaded', function() {
     const scoreInputs = document.querySelectorAll('.score-input');
     const saveButton = document.getElementById('saveResults');
     const calculateAllButton = document.getElementById('calculateAll');
+    const classSelect = document.getElementById('class');
+    const subjectSelect = document.getElementById('subject');
+    
+    // FIXED: Load subjects when class changes
+    classSelect.addEventListener('change', function() {
+        const className = this.value;
+        subjectSelect.innerHTML = '<option value="">Select Subject</option>';
+        
+        if (className) {
+            fetch(`/admin/api/classes/${encodeURIComponent(className)}/subjects`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        data.subjects.forEach(subject => {
+                            const option = document.createElement('option');
+                            option.value = subject.subjectName;
+                            option.textContent = subject.subjectName;
+                            subjectSelect.appendChild(option);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading subjects:', error);
+                });
+        }
+    });
     
     // Calculate total and grade for a specific row
     function calculateRow(rowIndex) {
@@ -174,63 +200,67 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Calculate all rows
-    calculateAllButton.addEventListener('click', function() {
-        const rows = document.querySelectorAll('.score-input[name*="ca1_"]');
-        rows.forEach((input, index) => {
-            calculateRow(index);
-        });
-    });
-    
-    // Save results
-    saveButton.addEventListener('click', function() {
-        const formData = new FormData(document.getElementById('resultForm'));
-        const results = [];
-        
-        // Collect all student results
-        const studentIds = document.querySelectorAll('input[name*="studentID_"]');
-        studentIds.forEach((input, index) => {
-            const studentID = input.value;
-            const studentName = document.querySelector(`input[name="studentName_${index}"]`).value;
-            const ca1 = document.querySelector(`input[name="ca1_${index}"]`).value;
-            const ca2 = document.querySelector(`input[name="ca2_${index}"]`).value;
-            const exam = document.querySelector(`input[name="exam_${index}"]`).value;
-            
-            results.push({
-                studentID,
-                studentName,
-                ca1: parseFloat(ca1) || 0,
-                ca2: parseFloat(ca2) || 0,
-                exam: parseFloat(exam) || 0
+    if (calculateAllButton) {
+        calculateAllButton.addEventListener('click', function() {
+            const rows = document.querySelectorAll('.score-input[name*="ca1_"]');
+            rows.forEach((input, index) => {
+                calculateRow(index);
             });
         });
-        
-        // Send data to server
-        fetch('/admin/score-entry/save', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                className: formData.get('className'),
-                subject: formData.get('subject'),
-                term: formData.get('term'),
-                session: formData.get('session'),
-                results: results
+    }
+    
+    // Save results
+    if (saveButton) {
+        saveButton.addEventListener('click', function() {
+            const formData = new FormData(document.getElementById('resultForm'));
+            const results = [];
+            
+            // Collect all student results
+            const studentIds = document.querySelectorAll('input[name*="studentID_"]');
+            studentIds.forEach((input, index) => {
+                const studentID = input.value;
+                const studentName = document.querySelector(`input[name="studentName_${index}"]`).value;
+                const ca1 = document.querySelector(`input[name="ca1_${index}"]`).value;
+                const ca2 = document.querySelector(`input[name="ca2_${index}"]`).value;
+                const exam = document.querySelector(`input[name="exam_${index}"]`).value;
+                
+                results.push({
+                    studentID,
+                    studentName,
+                    ca1: parseFloat(ca1) || 0,
+                    ca2: parseFloat(ca2) || 0,
+                    exam: parseFloat(exam) || 0
+                });
+            });
+            
+            // Send data to server
+            fetch('/admin/score-entry/save', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    className: formData.get('className'),
+                    subject: formData.get('subject'),
+                    term: formData.get('term'),
+                    session: formData.get('session'),
+                    results: results
+                })
             })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                alert('Results saved successfully! They are now available for approval.');
-            } else {
-                alert('Error saving results: ' + data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error saving results');
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Results saved successfully! They are now available for approval.');
+                } else {
+                    alert('Error saving results: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error saving results');
+            });
         });
-    });
+    }
 });
 </script>
 

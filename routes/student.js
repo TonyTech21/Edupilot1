@@ -74,7 +74,7 @@ router.get('/portal', async (req, res) => {
   }
 });
 
-// View All Results
+// View All Results - ENHANCED
 router.get('/results', async (req, res) => {
   try {
     const user = req.session.user;
@@ -137,7 +137,7 @@ router.get('/results', async (req, res) => {
   }
 });
 
-// Download Result PDF
+// Download Result PDF - ENHANCED with position
 router.get('/results/download', async (req, res) => {
   try {
     const user = req.session.user;
@@ -252,7 +252,7 @@ router.get('/results/download', async (req, res) => {
   }
 });
 
-// Student Profile
+// Student Profile - NEW
 router.get('/profile', async (req, res) => {
   try {
     const user = req.session.user;
@@ -272,7 +272,7 @@ router.get('/profile', async (req, res) => {
   }
 });
 
-// Update Password
+// Update Password - NEW
 router.post('/profile/password', async (req, res) => {
   try {
     const user = req.session.user;

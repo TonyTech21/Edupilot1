@@ -69,14 +69,14 @@ mongoose.connect(process.env.MONGODB_URI, {
 })
 .then(() => {
   console.log('Connected to MongoDB Atlas');
-  // Initialize default data
+  // Initialize default data ONLY if needed
   initializeDefaultData();
 })
 .catch(err => {
   console.error('MongoDB connection error:', err);
 });
 
-// Initialize Default Data
+// Initialize Default Data - FIXED to prevent dummy data
 async function initializeDefaultData() {
   const User = require('./models/User');
   const School = require('./models/School');
@@ -107,16 +107,9 @@ async function initializeDefaultData() {
       console.log('Default admin password:', defaultAdminPassword);
     } else {
       console.log('Default admin already exists with email:', defaultAdminEmail);
-      // Let's also log the admin details for debugging
-      console.log('Existing admin details:', {
-        name: adminExists.name,
-        email: adminExists.email,
-        role: adminExists.role,
-        isActive: adminExists.isActive
-      });
     }
 
-    // Create default school profile
+    // Create default school profile ONLY if none exists
     const schoolExists = await School.findOne();
     if (!schoolExists) {
       await School.create({
@@ -134,16 +127,8 @@ async function initializeDefaultData() {
       console.log('Default school profile created');
     }
 
-    // Create default session
-    const sessionExists = await Session.findOne();
-    if (!sessionExists) {
-      await Session.create({
-        sessionName: '2024/2025',
-        currentTerm: 'First Term',
-        isActive: true
-      });
-      console.log('Default session created');
-    }
+    // DO NOT create default session - let admin create sessions manually
+    console.log('Initialization complete - no dummy sessions created');
 
   } catch (error) {
     console.error('Error initializing default data:', error);
