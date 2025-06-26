@@ -92,14 +92,14 @@
                     <th>Subject</th>
                     <th>Term</th>
                     <th>Session</th>
-                    <th>CA1</th>
-                    <th>CA2</th>
-                    <th>Exam</th>
+                    <th>CA1 (15)</th>
+                    <th>CA2 (15)</th>
+                    <th>Exam (70)</th>
                     <th>Total</th>
                     <th>Grade</th>
-                    <th>Position</th>
+                    <th>Remark</th>
+                    <th>Status</th>
                     <th>Entered By</th>
-                    <th>Date Entered</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -125,15 +125,15 @@
                                     <%= result.grade %>
                                 </span>
                             </td>
-                            <td class="position">
-                                <% if (result.position) { %>
-                                    <%= result.position %>
-                                <% } else { %>
-                                    -
-                                <% } %>
+                            <td class="remark remark-<%= result.remark.toLowerCase().replace(/\s+/g, '-') %>">
+                                <%= result.remark %>
+                            </td>
+                            <td>
+                                <span class="status-badge status-<%= result.status %>">
+                                    <%= result.status.charAt(0).toUpperCase() + result.status.slice(1) %>
+                                </span>
                             </td>
                             <td><%= result.enteredBy %></td>
-                            <td><%= new Date(result.enteredAt).toLocaleDateString() %></td>
                             <td class="actions">
                                 <button type="button" class="btn btn-sm btn-success approve-btn" data-id="<%= result._id %>">
                                     <i class="fas fa-check"></i> Approve
@@ -143,7 +143,7 @@
                     <% }) %>
                 <% } else { %>
                     <tr>
-                        <td colspan="16" class="text-center">No pending results found</td>
+                        <td colspan="16" class="text-center">No results pending approval</td>
                     </tr>
                 <% } %>
             </tbody>
@@ -179,21 +179,40 @@
     font-size: 0.875rem;
 }
 
-.grade-a { background: #d1fae5; color: #065f46; }
-.grade-b { background: #dbeafe; color: #1e40af; }
-.grade-c { background: #fef3c7; color: #92400e; }
-.grade-d { background: #fed7aa; color: #9a3412; }
-.grade-e { background: #fecaca; color: #991b1b; }
-.grade-f { background: #fee2e2; color: #991b1b; }
+.grade-a1 { background: #d1fae5; color: #065f46; }
+.grade-b2, .grade-b3 { background: #dbeafe; color: #1e40af; }
+.grade-c4, .grade-c5, .grade-c6 { background: #fef3c7; color: #92400e; }
+.grade-d7 { background: #fed7aa; color: #9a3412; }
+.grade-e8 { background: #fecaca; color: #991b1b; }
+.grade-f9 { background: #fee2e2; color: #991b1b; }
+
+.remark {
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.remark-excellent { color: #065f46; }
+.remark-very-good { color: #1e40af; }
+.remark-good { color: #059669; }
+.remark-credit { color: #92400e; }
+.remark-pass { color: #9a3412; }
+.remark-fail { color: #991b1b; }
+
+.status-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.status-sent {
+    background-color: #fef3c7;
+    color: #92400e;
+}
 
 .total-score {
     font-weight: bold;
     color: var(--primary-color);
-}
-
-.position {
-    font-weight: bold;
-    color: var(--success-color);
 }
 
 .bulk-actions {
@@ -360,7 +379,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const remainingRows = document.querySelectorAll('.data-table tbody tr:not(.no-results)').length;
         if (remainingRows === 0) {
             const tbody = document.querySelector('.data-table tbody');
-            tbody.innerHTML = '<tr class="no-results"><td colspan="16" class="text-center">No pending results found</td></tr>';
+            tbody.innerHTML = '<tr class="no-results"><td colspan="16" class="text-center">No results pending approval</td></tr>';
             if (bulkActions) {
                 bulkActions.style.display = 'none';
             }

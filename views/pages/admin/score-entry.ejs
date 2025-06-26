@@ -57,6 +57,11 @@
                 <div class="result-header">
                     <h2><%= selectedClass %> - <%= selectedSubject %></h2>
                     <p><%= selectedTerm %>, <%= activeSession ? activeSession.sessionName : '' %></p>
+                    <div class="grading-info">
+                        <h4>Grading Scale:</h4>
+                        <p><strong>CA1:</strong> 15 marks | <strong>CA2:</strong> 15 marks | <strong>Exam:</strong> 70 marks | <strong>Total:</strong> 100 marks</p>
+                        <p><strong>Grades:</strong> A1(75-100) | B2(70-74) | B3(65-69) | C4(60-64) | C5(55-59) | C6(50-54) | D7(45-49) | E8(40-44) | F9(0-39)</p>
+                    </div>
                 </div>
                 
                 <form id="resultForm" class="result-form">
@@ -72,11 +77,12 @@
                                     <th>S/N</th>
                                     <th>Student Name</th>
                                     <th>Student ID</th>
-                                    <th>CA1 (20)</th>
-                                    <th>CA2 (20)</th>
-                                    <th>Exam (60)</th>
+                                    <th>CA1 (15)</th>
+                                    <th>CA2 (15)</th>
+                                    <th>Exam (70)</th>
                                     <th>Total</th>
                                     <th>Grade</th>
+                                    <th>Remark</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -87,33 +93,42 @@
                                         const ca2 = existingResult ? existingResult.ca2 : 0;
                                         const exam = existingResult ? existingResult.exam : 0;
                                         const total = ca1 + ca2 + exam;
-                                        let grade = 'F';
-                                        if (total >= 80) grade = 'A';
-                                        else if (total >= 70) grade = 'B';
-                                        else if (total >= 60) grade = 'C';
-                                        else if (total >= 50) grade = 'D';
-                                        else if (total >= 40) grade = 'E';
+                                        
+                                        // New grading system
+                                        let grade = 'F9';
+                                        let remark = 'Fail';
+                                        if (total >= 75) { grade = 'A1'; remark = 'Excellent'; }
+                                        else if (total >= 70) { grade = 'B2'; remark = 'Very Good'; }
+                                        else if (total >= 65) { grade = 'B3'; remark = 'Good'; }
+                                        else if (total >= 60) { grade = 'C4'; remark = 'Credit'; }
+                                        else if (total >= 55) { grade = 'C5'; remark = 'Credit'; }
+                                        else if (total >= 50) { grade = 'C6'; remark = 'Credit'; }
+                                        else if (total >= 45) { grade = 'D7'; remark = 'Pass'; }
+                                        else if (total >= 40) { grade = 'E8'; remark = 'Pass'; }
                                     %>
                                     <tr>
                                         <td><%= index + 1 %></td>
                                         <td><%= student.fullName %></td>
                                         <td><%= student.studentID %></td>
                                         <td>
-                                            <input type="number" name="ca1_<%= index %>" min="0" max="20" value="<%= ca1 %>" class="score-input" data-row="<%= index %>">
+                                            <input type="number" name="ca1_<%= index %>" min="0" max="15" value="<%= ca1 %>" class="score-input" data-row="<%= index %>">
                                             <input type="hidden" name="studentID_<%= index %>" value="<%= student.studentID %>">
                                             <input type="hidden" name="studentName_<%= index %>" value="<%= student.fullName %>">
                                         </td>
                                         <td>
-                                            <input type="number" name="ca2_<%= index %>" min="0" max="20" value="<%= ca2 %>" class="score-input" data-row="<%= index %>">
+                                            <input type="number" name="ca2_<%= index %>" min="0" max="15" value="<%= ca2 %>" class="score-input" data-row="<%= index %>">
                                         </td>
                                         <td>
-                                            <input type="number" name="exam_<%= index %>" min="0" max="60" value="<%= exam %>" class="score-input" data-row="<%= index %>">
+                                            <input type="number" name="exam_<%= index %>" min="0" max="70" value="<%= exam %>" class="score-input" data-row="<%= index %>">
                                         </td>
                                         <td>
                                             <span class="total-score" data-row="<%= index %>"><%= total %></span>
                                         </td>
                                         <td>
                                             <span class="grade-display" data-row="<%= index %>"><%= grade %></span>
+                                        </td>
+                                        <td>
+                                            <span class="remark-display" data-row="<%= index %>"><%= remark %></span>
                                         </td>
                                     </tr>
                                 <% }) %>
@@ -122,10 +137,13 @@
                     </div>
                     
                     <div class="form-actions">
-                        <button type="button" id="saveResults" class="btn btn-primary">
-                            <i class="fas fa-save"></i> Save Results
+                        <button type="button" id="saveResults" class="btn btn-secondary">
+                            <i class="fas fa-save"></i> Save as Draft
                         </button>
-                        <button type="button" id="calculateAll" class="btn btn-secondary">
+                        <button type="button" id="sendResults" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> Send for Approval
+                        </button>
+                        <button type="button" id="calculateAll" class="btn btn-outline">
                             <i class="fas fa-calculator"></i> Recalculate All
                         </button>
                     </div>
@@ -139,16 +157,67 @@
     </div>
 </div>
 
+<style>
+.grading-info {
+    background: var(--light-gray);
+    padding: 1rem;
+    border-radius: 0.375rem;
+    margin: 1rem 0;
+    border-left: 4px solid var(--primary-color);
+}
+
+.grading-info h4 {
+    color: var(--primary-color);
+    margin-bottom: 0.5rem;
+}
+
+.grading-info p {
+    margin: 0.25rem 0;
+    font-size: 0.9rem;
+    color: var(--dark-gray);
+}
+
+.score-input {
+    width: 70px;
+    padding: 0.25rem;
+    border: 1px solid var(--medium-gray);
+    border-radius: 0.25rem;
+    text-align: center;
+}
+
+.score-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.total-score,
+.grade-display,
+.remark-display {
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--medium-gray);
+}
+</style>
+
 <script>
-// Auto-calculate totals and grades
+// Auto-calculate totals and grades with new grading system
 document.addEventListener('DOMContentLoaded', function() {
     const scoreInputs = document.querySelectorAll('.score-input');
     const saveButton = document.getElementById('saveResults');
+    const sendButton = document.getElementById('sendResults');
     const calculateAllButton = document.getElementById('calculateAll');
     const classSelect = document.getElementById('class');
     const subjectSelect = document.getElementById('subject');
     
-    // FIXED: Load subjects when class changes
+    // Load subjects when class changes
     classSelect.addEventListener('change', function() {
         const className = this.value;
         subjectSelect.innerHTML = '<option value="">Select Subject</option>';
@@ -172,23 +241,46 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Calculate total and grade for a specific row
+    // Calculate total, grade, and remark for a specific row - NEW GRADING SYSTEM
     function calculateRow(rowIndex) {
         const ca1 = parseFloat(document.querySelector(`input[name="ca1_${rowIndex}"]`).value) || 0;
         const ca2 = parseFloat(document.querySelector(`input[name="ca2_${rowIndex}"]`).value) || 0;
         const exam = parseFloat(document.querySelector(`input[name="exam_${rowIndex}"]`).value) || 0;
         
         const total = ca1 + ca2 + exam;
-        let grade = 'F';
+        let grade = 'F9';
+        let remark = 'Fail';
         
-        if (total >= 80) grade = 'A';
-        else if (total >= 70) grade = 'B';
-        else if (total >= 60) grade = 'C';
-        else if (total >= 50) grade = 'D';
-        else if (total >= 40) grade = 'E';
+        // New grading system
+        if (total >= 75) {
+            grade = 'A1';
+            remark = 'Excellent';
+        } else if (total >= 70) {
+            grade = 'B2';
+            remark = 'Very Good';
+        } else if (total >= 65) {
+            grade = 'B3';
+            remark = 'Good';
+        } else if (total >= 60) {
+            grade = 'C4';
+            remark = 'Credit';
+        } else if (total >= 55) {
+            grade = 'C5';
+            remark = 'Credit';
+        } else if (total >= 50) {
+            grade = 'C6';
+            remark = 'Credit';
+        } else if (total >= 45) {
+            grade = 'D7';
+            remark = 'Pass';
+        } else if (total >= 40) {
+            grade = 'E8';
+            remark = 'Pass';
+        }
         
         document.querySelector(`span[data-row="${rowIndex}"].total-score`).textContent = total;
         document.querySelector(`span[data-row="${rowIndex}"].grade-display`).textContent = grade;
+        document.querySelector(`span[data-row="${rowIndex}"].remark-display`).textContent = remark;
     }
     
     // Add event listeners to score inputs
@@ -209,32 +301,81 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Save results
+    // Save results as draft
     if (saveButton) {
         saveButton.addEventListener('click', function() {
-            const formData = new FormData(document.getElementById('resultForm'));
-            const results = [];
+            saveResults('draft');
+        });
+    }
+    
+    // Send results for approval
+    if (sendButton) {
+        sendButton.addEventListener('click', function() {
+            if (confirm('Are you sure you want to send these results for approval? You will not be able to edit them after sending.')) {
+                sendResults();
+            }
+        });
+    }
+    
+    function saveResults(action = 'save') {
+        const formData = new FormData(document.getElementById('resultForm'));
+        const results = [];
+        
+        // Collect all student results
+        const studentIds = document.querySelectorAll('input[name*="studentID_"]');
+        studentIds.forEach((input, index) => {
+            const studentID = input.value;
+            const studentName = document.querySelector(`input[name="studentName_${index}"]`).value;
+            const ca1 = document.querySelector(`input[name="ca1_${index}"]`).value;
+            const ca2 = document.querySelector(`input[name="ca2_${index}"]`).value;
+            const exam = document.querySelector(`input[name="exam_${index}"]`).value;
             
-            // Collect all student results
-            const studentIds = document.querySelectorAll('input[name*="studentID_"]');
-            studentIds.forEach((input, index) => {
-                const studentID = input.value;
-                const studentName = document.querySelector(`input[name="studentName_${index}"]`).value;
-                const ca1 = document.querySelector(`input[name="ca1_${index}"]`).value;
-                const ca2 = document.querySelector(`input[name="ca2_${index}"]`).value;
-                const exam = document.querySelector(`input[name="exam_${index}"]`).value;
-                
-                results.push({
-                    studentID,
-                    studentName,
-                    ca1: parseFloat(ca1) || 0,
-                    ca2: parseFloat(ca2) || 0,
-                    exam: parseFloat(exam) || 0
-                });
+            results.push({
+                studentID,
+                studentName,
+                ca1: parseFloat(ca1) || 0,
+                ca2: parseFloat(ca2) || 0,
+                exam: parseFloat(exam) || 0
             });
-            
-            // Send data to server
-            fetch('/admin/score-entry/save', {
+        });
+        
+        // Send data to server
+        fetch('/admin/score-entry/save', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                className: formData.get('className'),
+                subject: formData.get('subject'),
+                term: formData.get('term'),
+                session: formData.get('session'),
+                results: results
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showAlert(data.message, 'success');
+            } else {
+                showAlert('Error saving results: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showAlert('Error saving results', 'error');
+        });
+    }
+    
+    function sendResults() {
+        const formData = new FormData(document.getElementById('resultForm'));
+        
+        // First save the results, then send them
+        saveResults();
+        
+        // Wait a moment then send for approval
+        setTimeout(() => {
+            fetch('/admin/score-entry/send', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -243,23 +384,43 @@ document.addEventListener('DOMContentLoaded', function() {
                     className: formData.get('className'),
                     subject: formData.get('subject'),
                     term: formData.get('term'),
-                    session: formData.get('session'),
-                    results: results
+                    session: formData.get('session')
                 })
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert('Results saved successfully! They are now available for approval.');
+                    showAlert(data.message + '. Results are now available for approval.', 'success');
+                    // Disable form after sending
+                    document.querySelectorAll('.score-input').forEach(input => input.disabled = true);
+                    sendButton.disabled = true;
+                    saveButton.disabled = true;
                 } else {
-                    alert('Error saving results: ' + data.message);
+                    showAlert('Error sending results: ' + data.message, 'error');
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('Error saving results');
+                showAlert('Error sending results', 'error');
             });
-        });
+        }, 1000);
+    }
+    
+    function showAlert(message, type) {
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type}`;
+        alert.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}"></i>
+            ${message}
+        `;
+        
+        const pageContent = document.querySelector('.page-content');
+        pageContent.insertBefore(alert, pageContent.firstChild);
+        
+        setTimeout(() => {
+            alert.style.opacity = '0';
+            setTimeout(() => alert.remove(), 300);
+        }, 5000);
     }
 });
 </script>

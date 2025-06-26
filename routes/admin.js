@@ -11,7 +11,7 @@ const { requireAuth, requireRole } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -47,16 +47,6 @@ const upload = multer({
 // All admin routes require admin role
 router.use(requireAuth);
 router.use(requireRole('admin'));
-
-// Generate secure random password
-function generateSecurePassword(length = 12) {
-  const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
-  let password = '';
-  for (let i = 0; i < length; i++) {
-    password += charset.charAt(Math.floor(Math.random() * charset.length));
-  }
-  return password;
-}
 
 // Manage Students
 router.get('/students', async (req, res) => {
@@ -118,7 +108,7 @@ router.get('/students/add', async (req, res) => {
   }
 });
 
-// Add Student POST - FIXED password generation
+// Add Student POST - FIXED with default password "student123"
 router.post('/students/add', upload.single('passport'), async (req, res) => {
   try {
     const {
@@ -139,13 +129,13 @@ router.post('/students/add', upload.single('passport'), async (req, res) => {
     
     const activeSession = await Session.getActiveSession();
     
-    // Generate secure random password
-    const securePassword = generateSecurePassword();
+    // FIXED: Use default password "student123"
+    const defaultPassword = 'student123';
     
     const studentData = {
       fullName,
       studentID,
-      password: securePassword, // This will be hashed by the pre-save middleware
+      password: defaultPassword, // This will be hashed by the pre-save middleware
       gender,
       dateOfBirth: new Date(dateOfBirth),
       parentPhone,
@@ -159,7 +149,7 @@ router.post('/students/add', upload.single('passport'), async (req, res) => {
     
     await Student.create(studentData);
     
-    res.redirect(`/admin/students?success=Student added successfully. Password: ${securePassword}`);
+    res.redirect(`/admin/students?success=Student added successfully. Default password: ${defaultPassword}`);
   } catch (error) {
     console.error('Error adding student:', error);
     res.render('pages/admin/add-student', {
@@ -226,23 +216,23 @@ router.post('/students/delete/:id', async (req, res) => {
   }
 });
 
-// Reset Student Password - NEW FEATURE
+// Reset Student Password to default "student123" - FIXED
 router.post('/students/reset-password/:id', async (req, res) => {
   try {
-    const newPassword = generateSecurePassword();
+    const defaultPassword = 'student123';
     const student = await Student.findById(req.params.id);
     
     if (!student) {
       return res.status(404).json({ success: false, message: 'Student not found' });
     }
     
-    student.password = newPassword; // Will be hashed by pre-save middleware
+    student.password = defaultPassword; // Will be hashed by pre-save middleware
     await student.save();
     
     res.json({ 
       success: true, 
       message: 'Password reset successfully', 
-      newPassword: newPassword,
+      newPassword: defaultPassword,
       studentID: student.studentID 
     });
   } catch (error) {
@@ -456,7 +446,7 @@ router.post('/classes/add', async (req, res) => {
   }
 });
 
-// Edit Class Form - NEW
+// Edit Class Form - FIXED
 router.get('/classes/edit/:id', async (req, res) => {
   try {
     const classDoc = await Class.findById(req.params.id);
@@ -475,7 +465,7 @@ router.get('/classes/edit/:id', async (req, res) => {
   }
 });
 
-// Update Class - NEW
+// Update Class - FIXED
 router.post('/classes/edit/:id', async (req, res) => {
   try {
     const { className, level, classTeacher, sections, subjects, subjectCodes, isCore } = req.body;
@@ -663,7 +653,7 @@ router.post('/sessions/toggle-term-lock/:id', async (req, res) => {
   }
 });
 
-// Score Entry Page - FIXED subject loading
+// Score Entry Page - COMPLETELY REWRITTEN
 router.get('/score-entry', async (req, res) => {
   try {
     const activeSession = await Session.getActiveSession();
@@ -685,17 +675,18 @@ router.get('/score-entry', async (req, res) => {
         isActive: true
       }).sort({ fullName: 1 });
       
-      // Get subjects for the selected class - FIXED
+      // Get subjects for the selected class
       const classDoc = await Class.findOne({ className: selectedClass });
       subjects = classDoc ? classDoc.assignedSubjects : [];
       
       if (selectedSubject) {
-        // Get existing results for this class and subject
+        // Get existing results for this class and subject (draft status only)
         existingResults = await Result.find({
           className: selectedClass,
           subject: selectedSubject,
           term: selectedTerm,
-          session: activeSession ? activeSession.sessionName : ''
+          session: activeSession ? activeSession.sessionName : '',
+          status: 'draft' // Only show draft results for editing
         });
       }
     }
@@ -717,7 +708,7 @@ router.get('/score-entry', async (req, res) => {
   }
 });
 
-// Get subjects for class - NEW API endpoint
+// Get subjects for class - API endpoint
 router.get('/api/classes/:className/subjects', async (req, res) => {
   try {
     const classDoc = await Class.findOne({ className: req.params.className });
@@ -729,7 +720,7 @@ router.get('/api/classes/:className/subjects', async (req, res) => {
   }
 });
 
-// Save Scores - ENHANCED
+// Save Scores - UPDATED for new grading system
 router.post('/score-entry/save', async (req, res) => {
   try {
     const { className, subject, term, session, results } = req.body;
@@ -737,13 +728,14 @@ router.post('/score-entry/save', async (req, res) => {
     const resultPromises = results.map(async (result) => {
       const { studentID, studentName, ca1, ca2, exam } = result;
       
-      // Find existing result or create new one
+      // Find existing result or create new one (draft status)
       const existingResult = await Result.findOne({
         studentID,
         className,
         subject,
         term,
-        session
+        session,
+        status: 'draft'
       });
       
       if (existingResult) {
@@ -752,11 +744,10 @@ router.post('/score-entry/save', async (req, res) => {
         existingResult.ca2 = parseFloat(ca2) || 0;
         existingResult.exam = parseFloat(exam) || 0;
         existingResult.enteredBy = req.session.user.email;
-        existingResult.published = false; // Reset published status when updated
         
         return existingResult.save();
       } else {
-        // Create new result
+        // Create new result with draft status
         return Result.create({
           studentID,
           studentName,
@@ -767,6 +758,7 @@ router.post('/score-entry/save', async (req, res) => {
           ca1: parseFloat(ca1) || 0,
           ca2: parseFloat(ca2) || 0,
           exam: parseFloat(exam) || 0,
+          status: 'draft',
           enteredBy: req.session.user.email
         });
       }
@@ -774,10 +766,44 @@ router.post('/score-entry/save', async (req, res) => {
     
     await Promise.all(resultPromises);
     
-    res.json({ success: true, message: 'Scores saved successfully' });
+    res.json({ success: true, message: 'Scores saved successfully as draft' });
   } catch (error) {
     console.error('Error saving scores:', error);
     res.status(500).json({ success: false, message: 'Failed to save scores' });
+  }
+});
+
+// Send Results for Approval - NEW ENDPOINT
+router.post('/score-entry/send', async (req, res) => {
+  try {
+    const { className, subject, term, session } = req.body;
+    
+    // Update all draft results for this class/subject/term to 'sent' status
+    const updateResult = await Result.updateMany(
+      {
+        className,
+        subject,
+        term,
+        session,
+        status: 'draft'
+      },
+      {
+        status: 'sent',
+        sentAt: new Date()
+      }
+    );
+    
+    if (updateResult.modifiedCount === 0) {
+      return res.status(400).json({ success: false, message: 'No draft results found to send' });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `${updateResult.modifiedCount} results sent for approval successfully` 
+    });
+  } catch (error) {
+    console.error('Error sending results:', error);
+    res.status(500).json({ success: false, message: 'Failed to send results' });
   }
 });
 

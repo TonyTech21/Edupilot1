@@ -5,14 +5,15 @@ const Student = require('../models/Student');
 const Session = require('../models/Session');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
-// Result approval (for admin and officer)
+// Result approval (for admin and officer) - UPDATED for new status system
 router.get('/approve', requireAuth, requireRole(['admin', 'officer']), async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = 20;
     const skip = (page - 1) * limit;
     
-    const filter = { published: false };
+    // Only show results with 'sent' status
+    const filter = { status: 'sent' };
     if (req.query.class) filter.className = req.query.class;
     if (req.query.subject) filter.subject = req.query.subject;
     if (req.query.term) filter.term = req.query.term;
@@ -26,11 +27,11 @@ router.get('/approve', requireAuth, requireRole(['admin', 'officer']), async (re
     const totalResults = await Result.countDocuments(filter);
     const totalPages = Math.ceil(totalResults / limit);
     
-    // Get unique values for filters
-    const classes = await Result.distinct('className', { published: false });
-    const subjects = await Result.distinct('subject', { published: false });
-    const terms = await Result.distinct('term', { published: false });
-    const sessions = await Result.distinct('session', { published: false });
+    // Get unique values for filters (only from sent results)
+    const classes = await Result.distinct('className', { status: 'sent' });
+    const subjects = await Result.distinct('subject', { status: 'sent' });
+    const terms = await Result.distinct('term', { status: 'sent' });
+    const sessions = await Result.distinct('session', { status: 'sent' });
     
     res.render('pages/result/approve', {
       title: 'Approve Results',
@@ -49,7 +50,7 @@ router.get('/approve', requireAuth, requireRole(['admin', 'officer']), async (re
   }
 });
 
-// Approve single result
+// Approve single result - UPDATED
 router.post('/approve/:id', requireAuth, requireRole(['admin', 'officer']), async (req, res) => {
   try {
     const user = req.session.user;
@@ -59,9 +60,13 @@ router.post('/approve/:id', requireAuth, requireRole(['admin', 'officer']), asyn
       return res.status(404).json({ success: false, message: 'Result not found' });
     }
     
-    result.published = true;
-    result.publishedBy = user.email;
-    result.publishedAt = new Date();
+    if (result.status !== 'sent') {
+      return res.status(400).json({ success: false, message: 'Result is not ready for approval' });
+    }
+    
+    result.status = 'approved';
+    result.approvedBy = user.email;
+    result.approvedAt = new Date();
     
     await result.save();
     
@@ -75,7 +80,7 @@ router.post('/approve/:id', requireAuth, requireRole(['admin', 'officer']), asyn
   }
 });
 
-// Approve multiple results
+// Approve multiple results - UPDATED
 router.post('/approve-multiple', requireAuth, requireRole(['admin', 'officer']), async (req, res) => {
   try {
     const user = req.session.user;
@@ -85,14 +90,24 @@ router.post('/approve-multiple', requireAuth, requireRole(['admin', 'officer']),
       return res.status(400).json({ success: false, message: 'No results selected' });
     }
     
-    const results = await Result.find({ _id: { $in: resultIds } });
+    const results = await Result.find({ 
+      _id: { $in: resultIds },
+      status: 'sent'
+    });
+    
+    if (results.length === 0) {
+      return res.status(400).json({ success: false, message: 'No valid results found for approval' });
+    }
     
     await Result.updateMany(
-      { _id: { $in: resultIds } },
       { 
-        published: true, 
-        publishedBy: user.email, 
-        publishedAt: new Date() 
+        _id: { $in: resultIds },
+        status: 'sent'
+      },
+      { 
+        status: 'approved',
+        approvedBy: user.email, 
+        approvedAt: new Date() 
       }
     );
     
@@ -107,39 +122,77 @@ router.post('/approve-multiple', requireAuth, requireRole(['admin', 'officer']),
       await Result.calculatePositions(className, term, session);
     }
     
-    res.json({ success: true, message: `${resultIds.length} results approved successfully` });
+    res.json({ success: true, message: `${results.length} results approved successfully` });
   } catch (error) {
     console.error('Error approving multiple results:', error);
     res.status(500).json({ success: false, message: 'Failed to approve results' });
   }
 });
 
-// View published results
+// Publish Results for Class/Term - NEW ENDPOINT
+router.post('/publish', requireAuth, requireRole(['admin', 'officer']), async (req, res) => {
+  try {
+    const { className, term, session } = req.body;
+    const user = req.session.user;
+    
+    // Update all approved results for this class/term to published
+    const updateResult = await Result.updateMany(
+      {
+        className,
+        term,
+        session,
+        status: 'approved'
+      },
+      {
+        publishedBy: user.email,
+        publishedAt: new Date()
+      }
+    );
+    
+    if (updateResult.modifiedCount === 0) {
+      return res.status(400).json({ success: false, message: 'No approved results found to publish' });
+    }
+    
+    // Recalculate positions after publishing
+    await Result.calculatePositions(className, term, session);
+    
+    res.json({ 
+      success: true, 
+      message: `Results published for ${className} - ${term}, ${session}` 
+    });
+  } catch (error) {
+    console.error('Error publishing results:', error);
+    res.status(500).json({ success: false, message: 'Failed to publish results' });
+  }
+});
+
+// View published results - UPDATED
 router.get('/published', requireAuth, requireRole(['admin', 'officer']), async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = 20;
     const skip = (page - 1) * limit;
     
-    const filter = { published: true };
+    // Only show approved results
+    const filter = { status: 'approved' };
     if (req.query.class) filter.className = req.query.class;
     if (req.query.subject) filter.subject = req.query.subject;
     if (req.query.term) filter.term = req.query.term;
     if (req.query.session) filter.session = req.query.session;
     
     const results = await Result.find(filter)
-      .sort({ publishedAt: -1 })
+      .sort({ approvedAt: -1 })
       .skip(skip)
       .limit(limit);
     
     const totalResults = await Result.countDocuments(filter);
     const totalPages = Math.ceil(totalResults / limit);
     
-    // Get unique values for filters
-    const classes = await Result.distinct('className', { published: true });
-    const subjects = await Result.distinct('subject', { published: true });
-    const terms = await Result.distinct('term', { published: true });
-    const sessions = await Result.distinct('session', { published: true });
+    // Get unique values for filters (only from approved results)
+    const classes = await Result.distinct('className', { status: 'approved' });
+    const subjects = await Result.distinct('subject', { status: 'approved' });
+    const terms = await Result.distinct('term', { status: 'approved' });
+    const sessions = await Result.distinct('session', { status: 'approved' });
     
     res.render('pages/result/published', {
       title: 'Published Results',
@@ -158,7 +211,7 @@ router.get('/published', requireAuth, requireRole(['admin', 'officer']), async (
   }
 });
 
-// Unpublish result (for admin only)
+// Unpublish result (for admin only) - UPDATED
 router.post('/unpublish/:id', requireAuth, requireRole('admin'), async (req, res) => {
   try {
     const result = await Result.findById(req.params.id);
@@ -167,7 +220,13 @@ router.post('/unpublish/:id', requireAuth, requireRole('admin'), async (req, res
       return res.status(404).json({ success: false, message: 'Result not found' });
     }
     
-    result.published = false;
+    if (result.status !== 'approved') {
+      return res.status(400).json({ success: false, message: 'Result is not approved' });
+    }
+    
+    result.status = 'sent';
+    result.approvedBy = null;
+    result.approvedAt = null;
     result.publishedBy = null;
     result.publishedAt = null;
     result.position = null;

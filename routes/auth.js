@@ -40,7 +40,7 @@ router.get('/login', (req, res) => {
   });
 });
 
-// Login POST - FIXED student authentication
+// Login POST - COMPLETELY FIXED for student authentication
 router.post('/login', async (req, res) => {
   const { email, password, loginType } = req.body;
 
@@ -49,6 +49,7 @@ router.post('/login', async (req, res) => {
   try {
     if (loginType === 'student') {
       // Student login using Student ID
+      console.log('Attempting student login with ID:', email);
       const student = await Student.findOne({ studentID: email });
       
       if (!student) {
@@ -59,7 +60,14 @@ router.post('/login', async (req, res) => {
         });
       }
 
-      console.log('Student found, checking password...');
+      console.log('Student found:', {
+        id: student.studentID,
+        name: student.fullName,
+        isActive: student.isActive
+      });
+
+      // FIXED: Use comparePassword method correctly
+      console.log('Checking password...');
       const isValidPassword = await student.comparePassword(password);
       console.log('Password validation result:', isValidPassword);
       

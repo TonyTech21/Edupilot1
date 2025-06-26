@@ -31,26 +31,26 @@ const resultSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
-  // Assessment Scores
+  // Assessment Scores - Updated to new grading system
   ca1: {
     type: Number,
     required: true,
     min: 0,
-    max: 20,
+    max: 15,
     default: 0
   },
   ca2: {
     type: Number,
     required: true,
     min: 0,
-    max: 20,
+    max: 15,
     default: 0
   },
   exam: {
     type: Number,
     required: true,
     min: 0,
-    max: 60,
+    max: 70,
     default: 0
   },
   // Calculated Fields
@@ -60,30 +60,25 @@ const resultSchema = new mongoose.Schema({
   },
   grade: {
     type: String,
-    enum: ['A', 'B', 'C', 'D', 'E', 'F'],
-    default: 'F'
+    enum: ['A1', 'B2', 'B3', 'C4', 'C5', 'C6', 'D7', 'E8', 'F9'],
+    default: 'F9'
   },
   remark: {
     type: String,
-    enum: ['Excellent', 'Very Good', 'Good', 'Fair', 'Poor', 'Fail'],
+    enum: ['Excellent', 'Very Good', 'Good', 'Credit', 'Pass', 'Fail'],
     default: 'Fail'
   },
   position: {
     type: Number,
     default: null
   },
-  // Status Tracking
-  published: {
-    type: Boolean,
-    default: false
-  },
-  publishedBy: {
+  // Status tracking - NEW FIELD
+  status: {
     type: String,
-    trim: true
+    enum: ['draft', 'sent', 'approved'],
+    default: 'draft'
   },
-  publishedAt: {
-    type: Date
-  },
+  // Status Tracking
   enteredBy: {
     type: String,
     required: true,
@@ -93,35 +88,56 @@ const resultSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
+  sentAt: {
+    type: Date
+  },
+  approvedBy: {
+    type: String,
+    trim: true
+  },
+  approvedAt: {
+    type: Date
+  },
   updatedAt: {
     type: Date,
     default: Date.now
   }
 });
 
-// Pre-save middleware to calculate total, grade, and remark
+// Pre-save middleware to calculate total, grade, and remark - UPDATED GRADING
 resultSchema.pre('save', function(next) {
   // Calculate total
   this.total = this.ca1 + this.ca2 + this.exam;
   
-  // Calculate grade based on total
-  if (this.total >= 80) {
-    this.grade = 'A';
+  // Calculate grade based on total using new grading system
+  const percentage = this.total;
+  
+  if (percentage >= 75) {
+    this.grade = 'A1';
     this.remark = 'Excellent';
-  } else if (this.total >= 70) {
-    this.grade = 'B';
+  } else if (percentage >= 70) {
+    this.grade = 'B2';
     this.remark = 'Very Good';
-  } else if (this.total >= 60) {
-    this.grade = 'C';
+  } else if (percentage >= 65) {
+    this.grade = 'B3';
     this.remark = 'Good';
-  } else if (this.total >= 50) {
-    this.grade = 'D';
-    this.remark = 'Fair';
-  } else if (this.total >= 40) {
-    this.grade = 'E';
-    this.remark = 'Poor';
+  } else if (percentage >= 60) {
+    this.grade = 'C4';
+    this.remark = 'Credit';
+  } else if (percentage >= 55) {
+    this.grade = 'C5';
+    this.remark = 'Credit';
+  } else if (percentage >= 50) {
+    this.grade = 'C6';
+    this.remark = 'Credit';
+  } else if (percentage >= 45) {
+    this.grade = 'D7';
+    this.remark = 'Pass';
+  } else if (percentage >= 40) {
+    this.grade = 'E8';
+    this.remark = 'Pass';
   } else {
-    this.grade = 'F';
+    this.grade = 'F9';
     this.remark = 'Fail';
   }
   
@@ -129,17 +145,17 @@ resultSchema.pre('save', function(next) {
   next();
 });
 
-// Static method to calculate positions for a class
+// Static method to calculate positions for a class - UPDATED
 resultSchema.statics.calculatePositions = async function(className, term, session) {
   try {
-    // Get all students in the class with their total scores
+    // Get all students in the class with their total scores (only approved results)
     const studentTotals = await this.aggregate([
       {
         $match: {
           className: className,
           term: term,
           session: session,
-          published: true
+          status: 'approved'
         }
       },
       {
@@ -168,7 +184,8 @@ resultSchema.statics.calculatePositions = async function(className, term, sessio
           studentID: studentTotals[i]._id,
           className: className,
           term: term,
-          session: session
+          session: session,
+          status: 'approved'
         },
         { position: position }
       );
@@ -184,6 +201,6 @@ resultSchema.statics.calculatePositions = async function(className, term, sessio
 // Compound indexes for efficient querying
 resultSchema.index({ studentID: 1, term: 1, session: 1 });
 resultSchema.index({ className: 1, subject: 1, term: 1, session: 1 });
-resultSchema.index({ published: 1 });
+resultSchema.index({ status: 1 });
 
 module.exports = mongoose.model('Result', resultSchema);

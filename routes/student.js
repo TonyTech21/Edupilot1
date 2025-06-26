@@ -25,12 +25,12 @@ router.get('/portal', async (req, res) => {
     
     const activeSession = await Session.getActiveSession();
     
-    // Get current term results
+    // Get current term results (only approved results)
     const currentResults = await Result.find({
       studentID: student.studentID,
       session: student.currentSession,
       term: activeSession ? activeSession.currentTerm : 'First Term',
-      published: true
+      status: 'approved' // Only show approved results
     }).sort({ subject: 1 });
     
     // Calculate statistics
@@ -74,7 +74,7 @@ router.get('/portal', async (req, res) => {
   }
 });
 
-// View All Results - ENHANCED
+// View All Results - UPDATED for new status system
 router.get('/results', async (req, res) => {
   try {
     const user = req.session.user;
@@ -87,20 +87,20 @@ router.get('/results', async (req, res) => {
     const selectedTerm = req.query.term;
     const selectedSession = req.query.session || student.currentSession;
     
-    // Get filter options
+    // Get filter options (only from approved results)
     const availableTerms = await Result.distinct('term', { 
       studentID: student.studentID, 
-      published: true 
+      status: 'approved'
     });
     const availableSessions = await Result.distinct('session', { 
       studentID: student.studentID, 
-      published: true 
+      status: 'approved'
     });
     
     // Build filter
     const filter = {
       studentID: student.studentID,
-      published: true
+      status: 'approved' // Only show approved results
     };
     
     if (selectedTerm) filter.term = selectedTerm;
@@ -137,7 +137,7 @@ router.get('/results', async (req, res) => {
   }
 });
 
-// Download Result PDF - ENHANCED with position
+// Download Result PDF - UPDATED for new grading system
 router.get('/results/download', async (req, res) => {
   try {
     const user = req.session.user;
@@ -148,16 +148,16 @@ router.get('/results/download', async (req, res) => {
       return res.status(404).send('Student not found');
     }
     
-    // Get results for the specified term and session
+    // Get results for the specified term and session (only approved)
     const results = await Result.find({
       studentID: student.studentID,
       term: term || 'First Term',
       session: session || student.currentSession,
-      published: true
+      status: 'approved' // Only approved results
     }).sort({ subject: 1 });
     
     if (results.length === 0) {
-      return res.status(404).send('No results found for the specified term and session');
+      return res.status(404).send('No approved results found for the specified term and session');
     }
     
     // Get school information
@@ -198,12 +198,12 @@ router.get('/results/download', async (req, res) => {
     doc.text('RESULTS', { align: 'center', underline: true });
     doc.moveDown();
     
-    // Table headers
+    // Table headers - UPDATED for new grading system
     const startY = doc.y;
     doc.text('Subject', 50, startY);
-    doc.text('CA1 (20)', 150, startY);
-    doc.text('CA2 (20)', 200, startY);
-    doc.text('Exam (60)', 250, startY);
+    doc.text('CA1 (15)', 150, startY);
+    doc.text('CA2 (15)', 200, startY);
+    doc.text('Exam (70)', 250, startY);
     doc.text('Total (100)', 300, startY);
     doc.text('Grade', 370, startY);
     doc.text('Remark', 420, startY);
@@ -252,7 +252,7 @@ router.get('/results/download', async (req, res) => {
   }
 });
 
-// Student Profile - NEW
+// Student Profile
 router.get('/profile', async (req, res) => {
   try {
     const user = req.session.user;
@@ -272,7 +272,7 @@ router.get('/profile', async (req, res) => {
   }
 });
 
-// Update Password - NEW
+// Update Password
 router.post('/profile/password', async (req, res) => {
   try {
     const user = req.session.user;
